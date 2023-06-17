@@ -1,25 +1,25 @@
 #include <Arduino.h>
 #include "config_keying.h"
+#include "challenger_types.h"
 
 //typedef
-enum ElementType : byte { NO_ELEMENT = 0, DIT = 1, DAH = 2, CHARSPACE = 3, WORDSPACE = 4 } ;
-enum KeyerBusyEnum: byte { IDLE = 0, BUSY = 1 };
-enum KeyerLineStatusEnum : byte {   OFF = 0,  ON = 1 };
-enum KeyerEnableEnum: byte { DISABLED = 0, ENABLED = 1 };
+enum ElementType { NO_ELEMENT = 0, DIT = 1, DAH = 2, CHARSPACE = 3, WORDSPACE = 4 } ;
+
+
 struct KeyingFlags
 {
-  KeyerEnableEnum tone : 1;
-  KeyerEnableEnum ptt : 1;
-  KeyerEnableEnum key : 1;
+  EnableEnum tone : 1;
+  EnableEnum ptt : 1;
+  EnableEnum key : 1;
 } ;
 
 struct KeyingStatus {
-  KeyerBusyEnum busy : 1;  // 1 if busy in timing process, 0 when idle
-  KeyerLineStatusEnum force : 1; // 1 if PTT or KEY is forced (ie. no element timing)
-  KeyerLineStatusEnum ptt : 1;   // 1 if PTT active
-  KeyerLineStatusEnum key : 1;   // 1 if KEY active
-  ElementType currentElement: 3; // current element in progress, see enum definition
-  ElementType nextElement: 3;    // next element to follow after current one 
+  BusyEnum busy : 1;        
+  OnOffEnum force : 1; 
+  OnOffEnum ptt : 1;   
+  OnOffEnum key : 1;   
+  ElementType currentElement: 3; 
+  ElementType nextElement: 3;    
 };
 
 class KeyingInterface
@@ -52,19 +52,19 @@ private:
   unsigned long lastMillis ; // millisecond CPU time during the last service tick
 
   // private methods
+  word trimToneFreq( word hz ); // trim tone frequency to stay between limits or keep zero
+  void setKey(OnOffEnum onOff); // low-level key control
+  void setPtt(OnOffEnum onOff); // low-level PTT control
   void newCurrentElement(ElementType element); // set status, onTimer and offTimer accordingly
 
 public:
   void init();  // port setup
-  void enableKey(KeyerEnableEnum enable); // enable or disable KEY output
-  void enablePtt(KeyerEnableEnum enable); // enable or disable PTT output
-  void enableTone(KeyerEnableEnum enable); // enable or disable tone
-  void setKey(KeyerLineStatusEnum onOff); // low-level key control
-  void setPtt(KeyerLineStatusEnum onOff); // low-level PTT control
+  void enableKey(EnableEnum enable); // enable or disable KEY output
+  void enablePtt(EnableEnum enable); // enable or disable PTT output
+  void enableTone(EnableEnum enable); // enable or disable tone
   void setTone(word hz);   // low-level sidetone control
   void setTiming(byte wpm, word aDahRatio = 0, word aWeighting = 0); // set time constants for given WPM speed, DAH:DIT ratio and weighting
   void setToneFreq(word hz);                                 // set tone frequency for high-level sending
-  word trimToneFreq( word hz ); // trim tone frequency to stay between limits or keep zero
   KeyingStatus sendElement( ElementType element ); // start element immediately or put it in queue
   KeyingStatus service();  // read current millis, update timers, ports and status accordingly and return new service status
 };

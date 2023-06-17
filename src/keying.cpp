@@ -19,7 +19,7 @@ void KeyingInterface::init()
  * set Key line.
  * @param level - high or low
  */
-void KeyingInterface::setKey(KeyerLineStatusEnum onOff)
+void KeyingInterface::setKey(OnOffEnum onOff)
 {
   if( flags.key == ENABLED ) {
     digitalWrite(_keyline1, onOff);
@@ -34,7 +34,7 @@ void KeyingInterface::setKey(KeyerLineStatusEnum onOff)
 /**
  * @param level - high or low
 */
-void KeyingInterface::setPtt(KeyerLineStatusEnum onOff)
+void KeyingInterface::setPtt(OnOffEnum onOff)
 {
   if( flags.ptt == ENABLED ) {
     digitalWrite(_pttline1, onOff);
@@ -81,19 +81,19 @@ void KeyingInterface::setTiming( byte wpm, word _dahRatio, word _weighting ) {
   weighting = (_weighting == 0) ? weighting : _weighting;
 }
 
-void KeyingInterface::enableKey(KeyerEnableEnum enable)
+void KeyingInterface::enableKey(EnableEnum enable)
 {
   flags.key  = enable  ; 
   if( flags.key == DISABLED ) setKey(OFF);
 }
 
-void KeyingInterface::enablePtt(KeyerEnableEnum enable)
+void KeyingInterface::enablePtt(EnableEnum enable)
 {
   flags.ptt  = enable  ; 
   if( flags.ptt == DISABLED ) setPtt(OFF);
 }
 
-void KeyingInterface::enableTone(KeyerEnableEnum enable)
+void KeyingInterface::enableTone(EnableEnum enable)
 {
   flags.tone = enable ; 
   if( flags.tone == DISABLED ) setTone(OFF);
