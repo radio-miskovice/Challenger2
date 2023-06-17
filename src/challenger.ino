@@ -8,11 +8,12 @@ void setup() {
 }
 
 void loop() {
-  KeyingStatus s = keyingInterface.service() ;
+  KeyingStatus s = keyingInterface.service() ; // check and update timing and status
   ElementType e ;
 
   if( phase >= 48 ) return ;
   if( s.busy == IDLE || s.nextElement == NO_ELEMENT ) {
+    // generate A, R, space, "manually"
     switch (phase++ % 8)
     {
     case 0:
