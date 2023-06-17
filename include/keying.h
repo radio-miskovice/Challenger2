@@ -40,10 +40,9 @@ private:
   KeyingStatus status = { busy : IDLE, force : OFF, ptt : OFF, key : OFF, currentElement : NO_ELEMENT, nextElement: NO_ELEMENT };
 
   // keying parameter settings 
-  word dashDotRatio = 300; // default dash:dot timing is 3:1
   word unit = 50;          // default timing unit is 50 msec = 24 WPM
   word weighting = 50 ;    // DIT duration in percent, element space is then 100 - weighting
-  word dahFactor = 300 ;    // DAH duration in percent of DIT element time including weighting
+  word ditDahFactor = 300 ;   // DAH duration in percent of DIT element time including weighting
   word toneFreq = 600 ;    // default sidetone frequency
  
   // timing variables

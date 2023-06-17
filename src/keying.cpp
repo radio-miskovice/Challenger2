@@ -77,7 +77,7 @@ void KeyingInterface::setToneFreq( word hz ) {
 
 void KeyingInterface::setTiming( byte wpm, word _dahRatio, word _weighting ) {
   unit = 1200 / wpm ;
-  dahFactor = (_dahRatio == 0) ? dahFactor : _dahRatio;
+  ditDahFactor = (_dahRatio == 0) ? ditDahFactor : _dahRatio;
   weighting = (_weighting == 0) ? weighting : _weighting;
 }
 
@@ -104,7 +104,7 @@ void KeyingInterface::enableTone(EnableEnum enable)
  * @return current service status: IDLE (no timing in progress), BUSY (timing in progress), DIT (sending DIT), DAH (sending dah), SPACE (sending char space or wordspace)
 */
 KeyingStatus KeyingInterface::service() {
-  if( status.busy == 0 ) return status ; // nothing to do
+  if( status.busy == IDLE ) return status ; // nothing to do
 
   unsigned long timestamp = millis();
   unsigned long interval = timestamp - lastMillis ;
@@ -169,7 +169,7 @@ KeyingStatus KeyingInterface::service() {
  * @param element new current element to set up
  */
 void KeyingInterface::newCurrentElement( ElementType element ) {
-  word ditDahFactor = 100 ;   // 100 for DIT, dahFactor for DAH 
+  word ditDahFactor = 100 ;   // 100 for DIT, ditDahFactor for DAH 
   word extraSpaceFactor = 2 ; // 2 for CHARSPACE, 4 for WORDSPACE
   status.currentElement = element ; // set new current element
   status.busy = BUSY ;     // set new status 
@@ -180,11 +180,11 @@ void KeyingInterface::newCurrentElement( ElementType element ) {
       offTimer = 0UL ;
       break ;
     case DAH:
-      ditDahFactor = dahFactor ;
+      ditDahFactor = ditDahFactor ;
     case DIT:
       onTimer = ( unit * weighting ) / 50UL ; // DIT duration with weighting
       offTimer = 2 * unit - onTimer ;  // element space duration with weighting
-      // now comes the magic for DAH: multiply by dahFactor, but keep current for DIT
+      // now comes the magic for DAH: multiply by ditDahFactor, but keep current for DIT
       onTimer = (onTimer * ditDahFactor) / 100UL ;
       break;
 
