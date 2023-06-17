@@ -117,6 +117,7 @@ KeyingStatus KeyingInterface::service() {
     else onTimer = onTimer - interval ;
     if( onTimer == 0 ) {
       setKey( OFF );
+      setTone( 0 );
     }
     return status ;
   }
@@ -152,6 +153,11 @@ KeyingStatus KeyingInterface::service() {
       else {
         newCurrentElement( status.nextElement );
         status.nextElement = NO_ELEMENT ;
+        if( status.currentElement == DIT || status.currentElement == DAH ) {
+          setKey( ON );
+          setTone( toneFreq );
+          lastMillis = millis();
+        }
       }
     }
   }
