@@ -3,9 +3,6 @@
 #include "challenger_types.h"
 
 //typedef
-enum ElementType { NO_ELEMENT = 0, DIT = 1, DAH = 2, CHARSPACE = 3, WORDSPACE = 4 } ;
-
-
 struct KeyingFlags
 {
   EnableEnum tone : 1;
