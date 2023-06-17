@@ -77,14 +77,15 @@ After the horrible experience of configuring K3NG source code (dozens of `#defin
 files like `keyer_pins.h`, `keyer_features_and_options.h` and `keyer_settings.h`, all
 unrelated things mixed up in a jungle of `#define`'s and comments) and a number or trials
 and errors before I hit the correct parameter, I finally understood that each separable
-component of code must have its configuration concentrated in one place.
+functional component of code must have its own configuration concentrated in one place only.
 
 Therefore the general source code structure of each software component consists
 of three files:
 
 * Header file `include/config_{component}.h` contains *only* configurable constants as
 `#define` macros. Under normal circumstances this is the only file that should be edited
-by end user to fit Challenger source code to different hardware setup.
+by end user to fit Challenger source code to different hardware setup. Some components do
+not need this (if there are no pins involved, there is usually nothing to customize).
 * Header file `include/{component}.h` is the usual C++ header file. Each component header
 file contains `extern` declaration of its respective singleton instance to ensure access
 in the main event loop.
