@@ -1,19 +1,12 @@
 #include "keying.h"
 #include "paddle.h"
 
-int phase = 0 ;
 void setup() {
   keyer.init();
   paddle.init();
   keyer.setTimingParameters(25, 300, 50);
-  keyer.sendElement(DIT);
-  keyer.sendElement(DAH);
-  while( keyer.service().busy == BUSY );
-  delay(500);
-
 }
 
-byte last = 0 ;
 void loop() {
   KeyingStatus ks = keyer.service() ; // check and update timing and status
   if( ks.busy == IDLE ) {
