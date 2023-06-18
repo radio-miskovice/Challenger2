@@ -3,7 +3,7 @@
 int phase = 0 ;
 void setup() {
   keyingInterface.init();
-  keyingInterface.setTiming(18, 500, 20);
+  keyingInterface.setTimingParameters(18, 500, 20);
   keyingInterface.sendElement( DIT );
 }
 

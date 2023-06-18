@@ -3,9 +3,6 @@
 #include "challenger_types.h"
 
 //typedef
-enum ElementType { NO_ELEMENT = 0, DIT = 1, DAH = 2, CHARSPACE = 3, WORDSPACE = 4 } ;
-
-
 struct KeyingFlags
 {
   EnableEnum tone : 1;
@@ -62,7 +59,7 @@ public:
   void enablePtt(EnableEnum enable); // enable or disable PTT output
   void enableTone(EnableEnum enable); // enable or disable tone
   void setTone(word hz);   // low-level sidetone control
-  void setTiming(byte wpm, word aDahRatio = 0, word aWeighting = 0); // set time constants for given WPM speed, DAH:DIT ratio and weighting
+  void setTimingParameters(byte wpm, word aDahRatio = 0, word aWeighting = 0); // set time constants for given WPM speed, DAH:DIT ratio and weighting
   void setToneFreq(word hz);                                 // set tone frequency for high-level sending
   KeyingStatus sendElement( ElementType element ); // start element immediately or put it in queue
   KeyingStatus service();  // read current millis, update timers, ports and status accordingly and return new service status

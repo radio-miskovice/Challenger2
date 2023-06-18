@@ -75,7 +75,7 @@ void KeyingInterface::setToneFreq( word hz ) {
   if( hz > 0 ) toneFreq = hz ;
 }
 
-void KeyingInterface::setTiming( byte wpm, word _dahRatio, word _weighting ) {
+void KeyingInterface::setTimingParameters( byte wpm, word _dahRatio, word _weighting ) {
   unit = 1200 / wpm ;
   ditDahFactor = (_dahRatio == 0) ? ditDahFactor : _dahRatio;
   weighting = (_weighting == 0) ? weighting : _weighting;

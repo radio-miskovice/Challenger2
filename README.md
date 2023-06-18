@@ -100,3 +100,5 @@ component methods and declaration of the respective singleton instance.
 | **Morse Engine**| morse | `morse.h`, `morse.cpp` | *Not customizable by end user (no hardware dependencies)* |
 | **Text Buffer** | keying | `buffer.h`, `buffer.cpp` | *Not customizable by end user (no hardware dependencies)* |
 | **Protocol** | protocol | `config_keying.h`, `keying.h`, `keying.cpp` | *Concurrent protocols may be implemented as derived classes from* `Protocol` *base class (decision pending)* |
+
+Have a look at [milestones](https://github.com/radio-miskovice/Challenger2/blob/main/doc/milestones.md)
