@@ -5,8 +5,9 @@
  * called separately.
  */
 void PaddleInterface::init() {
-  pinMode( pinPaddleRight, INPUT_PULLUP );
-  pinMode( pinPaddleLeft, INPUT_PULLUP );
+
+  pinMode( pinPaddleRight, INPUT );
+  pinMode( pinPaddleLeft, INPUT );
 }
 
 /**
@@ -27,7 +28,7 @@ void PaddleInterface::swap() {
  */
 PaddleStatus PaddleInterface::check() {
   // TODO: timing check should be used to debounce?
-  byte paddlePortBits = digitalRead(pinPaddleLeft) * DIT + digitalRead(pinPaddleRight) * DAH ;
+  byte paddlePortBits = digitalRead(pinPaddleLeft) * (swapPaddle ? DAH : DIT ) + digitalRead(pinPaddleRight) * (swapPaddle ? DIT : DAH );
   paddlePortBits = paddlePortBits ^ 0x03 ; // reverse active bit values to facilitate analysis
   if( paddlePortBits == lastPaddlePortBits ) return status ; // nothing changed, no action required
   status.touch = (paddlePortBits > 0) ? ON : status.touch ; // record touch for case buffer text is played; touch interrupts
