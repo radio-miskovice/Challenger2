@@ -3,21 +3,25 @@
 
 int phase = 0 ;
 void setup() {
-  keyingInterface.init();
-  keyingInterface.setTimingParameters(18, 300, 50);
-  keyingInterface.sendElement(DIT);
-  keyingInterface.sendElement(DAH);
+  keyer.init();
+  paddle.init();
+  keyer.setTimingParameters(25, 300, 50);
+  keyer.sendElement(DIT);
+  keyer.sendElement(DAH);
+  while( keyer.service().busy == BUSY );
   delay(500);
 
 }
 
+byte last = 0 ;
 void loop() {
-  PaddleStatus ps = paddle.check();
-  KeyingStatus ks = keyingInterface.service();
-  if( ks.busy == IDLE || ks.nextElement == NO_ELEMENT ) {
-    if( ps.next != NO_ELEMENT ) {
-      ps = paddle.getNext();
-      keyingInterface.sendElement( ps.current );
+  KeyingStatus ks = keyer.service() ; // check and update timing and status
+  if( ks.busy == IDLE ) {
+    byte ps = paddle.check() ;
+    switch (ps) {
+      case 0: keyer.sendElement( NO_ELEMENT ) ; break ;
+      case 3: keyer.sendElement( ks.last == DIT ? DAH : DIT ); break ;
+      default: keyer.sendElement( (ElementType) ps );
     }
   }
 }
