@@ -3,10 +3,12 @@
 
 int phase = 0 ;
 void setup() {
-  keyingInterface.init(); // set up keying interface
-  keyingInterface.setTiming(18, 500, 20);
-  // keyingInterface.sendElement( DIT );
-  paddle.init(); // set up paddle interface
+  keyingInterface.init();
+  keyingInterface.setTimingParameters(18, 300, 50);
+  keyingInterface.sendElement(DIT);
+  keyingInterface.sendElement(DAH);
+  delay(500);
+
 }
 
 void loop() {

@@ -5,6 +5,7 @@
  * called separately.
  */
 void PaddleInterface::init() {
+
   pinMode( pinPaddleRight, INPUT );
   pinMode( pinPaddleLeft, INPUT );
 }
@@ -53,7 +54,7 @@ PaddleStatus PaddleInterface::check() {
     if( paddlePortBits == 0 && status.mode == IAMBIC_A ) status.next = NO_ELEMENT ;
     if( paddlePortBits == DIT + DAH ) {
       if( status.current == NO_ELEMENT ) status.next = DAH ; // again the rare condition never to be met in reality
-      else status.next = status.current == DAH ? DIT : DAH ; // otherwise change the element
+      else status.next = (status.current == DAH) ? DIT : DAH ; // otherwise change the element
     }
     else
       status.next = (ElementType) paddlePortBits;
@@ -70,6 +71,7 @@ PaddleStatus PaddleInterface::getNext() {
   // if still in squeeze condition and any IAMBIC mode, change status.next accordingly!
   if( (lastPaddlePortBits ==  DIT+DAH) && status.mode != ULTIMATIC )
     status.next = status.current == DAH ? DIT : DAH ;
+    status.current = NO_ELEMENT ;
   return status ;
 }
 

@@ -8,9 +8,9 @@
  * CPO - similar to Sidetone except it is DC key line unlike Sidetone pin. May be keyed in cases when Key line is not.
  */
 
-#define CONFIG_KEYING_KEYLINE1 LED_BUILTIN
+#define CONFIG_KEYING_KEYLINE1 A2
 #define CONFIG_KEYING_PTTLINE1 7
-#define CONFIG_KEYING_SIDETONE 5
+#define CONFIG_KEYING_SIDETONE A5
 #define CONFIG_KEYING_CPO      0
 
 #define CONFIG_SIDETONE_MIN_FREQ 300
