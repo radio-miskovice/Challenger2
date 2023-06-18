@@ -9,10 +9,10 @@ KeyingInterface keyingInterface = KeyingInterface() ;
  */
 void KeyingInterface::init()
 {
-  if (_keyline1 >0)  pinMode(_keyline1, OUTPUT);
-  if (_pttline1 > 0) pinMode(_pttline1, OUTPUT);
-  if (_sidetone > 0) pinMode(_sidetone, OUTPUT);
-  if (_cpo_key > 0)  pinMode(_cpo_key, OUTPUT);
+  if (_keyline1 > 0)  pinMode(_keyline1, OUTPUT);
+  if (_pttline1 > 0)  pinMode(_pttline1, OUTPUT);
+  if (_sidetone > 0)  pinMode(_sidetone, OUTPUT);
+  if (_cpo_key  > 0)  pinMode(_cpo_key, OUTPUT);
 }
 
 /**
@@ -169,7 +169,7 @@ KeyingStatus KeyingInterface::service() {
  * @param element new current element to set up
  */
 void KeyingInterface::newCurrentElement( ElementType element ) {
-  word ditDahFactor = 100 ;   // 100 for DIT, ditDahFactor for DAH 
+  word elementFactor = 100 ;   // 100 for DIT, ditDahFactor for DAH 
   word extraSpaceFactor = 2 ; // 2 for CHARSPACE, 4 for WORDSPACE
   status.currentElement = element ; // set new current element
   status.busy = BUSY ;     // set new status 
@@ -180,12 +180,12 @@ void KeyingInterface::newCurrentElement( ElementType element ) {
       offTimer = 0UL ;
       break ;
     case DAH:
-      ditDahFactor = ditDahFactor ;
+      elementFactor = ditDahFactor ;
     case DIT:
       onTimer = ( unit * weighting ) / 50UL ; // DIT duration with weighting
       offTimer = 2 * unit - onTimer ;  // element space duration with weighting
       // now comes the magic for DAH: multiply by ditDahFactor, but keep current for DIT
-      onTimer = (onTimer * ditDahFactor) / 100UL ;
+      onTimer = (onTimer * elementFactor) / 100UL ;
       break;
 
     // word space: add 4T pause after 3T character space
