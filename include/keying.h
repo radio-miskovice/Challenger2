@@ -15,8 +15,15 @@ struct KeyingStatus {
   OnOffEnum force : 1; 
   OnOffEnum ptt : 1;   
   OnOffEnum key : 1;   
-  ElementType currentElement: 3; 
-  ElementType nextElement: 3;    
+  ElementType current: 3; 
+  ElementType last: 3;
+};
+
+enum KeyerModeEnum
+{
+  IAMBIC_A = 0,
+  IAMBIC_B = 1,
+  ULTIMATIC = 2
 };
 
 class KeyingInterface
@@ -34,7 +41,8 @@ private:
 
   // operational parameters and status
   KeyingFlags flags = { tone: ENABLED, ptt: ENABLED, key: ENABLED };
-  KeyingStatus status = { busy : IDLE, force : OFF, ptt : OFF, key : OFF, currentElement : NO_ELEMENT, nextElement: NO_ELEMENT };
+  KeyingStatus status = { busy : IDLE, force : OFF, ptt : OFF, key : OFF, current : NO_ELEMENT, last: NO_ELEMENT };
+  KeyerModeEnum mode = IAMBIC_A ;
 
   // keying parameter settings 
   word unit = 50;          // default timing unit is 50 msec = 24 WPM
@@ -58,11 +66,12 @@ public:
   void enableKey(EnableEnum enable); // enable or disable KEY output
   void enablePtt(EnableEnum enable); // enable or disable PTT output
   void enableTone(EnableEnum enable); // enable or disable tone
+  void setMode(KeyerModeEnum newMode);
   void setTone(word hz);   // low-level sidetone control
   void setTimingParameters(byte wpm, word aDahRatio = 0, word aWeighting = 0); // set time constants for given WPM speed, DAH:DIT ratio and weighting
   void setToneFreq(word hz);                                 // set tone frequency for high-level sending
   KeyingStatus sendElement( ElementType element ); // start element immediately or put it in queue
-  KeyingStatus service();  // read current millis, update timers, ports and status accordingly and return new service status
+  KeyingStatus service(); // read current millis, update timers, ports and status accordingly and return new service status
 };
 
-extern KeyingInterface keyingInterface;
+extern KeyingInterface keyer;

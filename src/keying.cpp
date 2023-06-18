@@ -2,7 +2,7 @@
 #include "keying.h"
 
 // Keying interface singleton
-KeyingInterface keyingInterface = KeyingInterface() ;
+KeyingInterface keyer = KeyingInterface() ;
 
 /**
  * initializes Arduino ports
@@ -126,41 +126,12 @@ KeyingStatus KeyingInterface::service() {
   if( offTimer > 0 ) {
     if( offTimer < interval ) offTimer = 0 ;
     else offTimer = offTimer - interval ;
-    if( offTimer == 0 ) { // element, character or word space expired
-      // if no element is waiting in queue, extend space
-      if ( status.nextElement == NO_ELEMENT ) {
-        switch( status.currentElement ) {
-          // when just finished WORDSPACE, nothing else to continue with
-          case WORDSPACE: 
-            status.busy = IDLE ; // set idle state
-            status.currentElement = NO_ELEMENT ; // sending no element
-            return status ; // exit right now
-            break;
-
-          // when just finished CHARSPACE and no element is waiting, extend to WORDSPACE
-          case CHARSPACE:
-            status.currentElement = WORDSPACE ;
-            offTimer = unit * 4 ; // new offTimer value
-            return status ;
-            break ;
-
-          default: // this happens only for DIT or DAH
-            status.currentElement = CHARSPACE ;
-            offTimer = unit * 2 ; // extend element space by 2T to achieve char space 3T
-            return status ;
-        }
-      }
-      else {
-        newCurrentElement( status.nextElement );
-        status.nextElement = NO_ELEMENT ;
-        if( status.currentElement == DIT || status.currentElement == DAH ) {
-          setKey( ON );
-          setTone( toneFreq );
-          lastMillis = millis();
-        }
+    if( offTimer == 0 ) { 
+       status.last = status.current ;
+       status.current = NO_ELEMENT ;
+       status.busy = IDLE ;
       }
     }
-  }
   return status ;
 }
 
@@ -171,7 +142,7 @@ KeyingStatus KeyingInterface::service() {
 void KeyingInterface::newCurrentElement( ElementType element ) {
   word elementFactor = 100 ;   // 100 for DIT, ditDahFactor for DAH 
   word extraSpaceFactor = 2 ; // 2 for CHARSPACE, 4 for WORDSPACE
-  status.currentElement = element ; // set new current element
+  status.current = element ; // set new current element
   status.busy = BUSY ;     // set new status 
   switch( element ) {
     case NO_ELEMENT:
@@ -186,6 +157,8 @@ void KeyingInterface::newCurrentElement( ElementType element ) {
       offTimer = 2 * unit - onTimer ;  // element space duration with weighting
       // now comes the magic for DAH: multiply by ditDahFactor, but keep current for DIT
       onTimer = (onTimer * elementFactor) / 100UL ;
+      setKey( ON );
+      setTone( toneFreq );
       break;
 
     // word space: add 4T pause after 3T character space
@@ -208,14 +181,14 @@ KeyingStatus KeyingInterface::sendElement( ElementType element ) {
   // if keyer is IDLE, start new element right off
   if( status.busy == IDLE ) {
     newCurrentElement( element );
-    status.nextElement = NO_ELEMENT ;
-  }
-  // but if the keyer is busy, put the element in queue
-  else {
-    // we can put it in queue only if the queue is empty
-    // but the calling process should never attempt to send 
-    // any new element if there is already one waiting!
-    if( status.nextElement == NO_ELEMENT ) status.nextElement = element ;
   }
   return status ;
+}
+
+/**
+ * Set new mode 
+ */
+void KeyingInterface::setMode(KeyerModeEnum newMode)
+{
+  mode == newMode;
 }

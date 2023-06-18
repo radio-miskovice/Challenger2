@@ -1,39 +1,28 @@
 #include "keying.h"
+#include "paddle.h"
 
 int phase = 0 ;
 void setup() {
-  keyingInterface.init();
-  keyingInterface.setTimingParameters(18, 300, 50);
-  keyingInterface.sendElement(DIT);
-  keyingInterface.sendElement(DAH);
+  keyer.init();
+  paddle.init();
+  keyer.setTimingParameters(25, 300, 50);
+  keyer.sendElement(DIT);
+  keyer.sendElement(DAH);
+  while( keyer.service().busy == BUSY );
   delay(500);
+  Serial.begin(57600);
+  Serial.println("OK");
 }
 
+byte last = 0 ;
 void loop() {
-  KeyingStatus s = keyingInterface.service() ; // check and update timing and status
-  ElementType e ;
-
-  if( phase >= 48 ) return ;
-  if( s.busy == IDLE || s.nextElement == NO_ELEMENT ) {
-    // generate A, R, space, "manually"
-    switch (phase++ % 8)
-    {
-    case 0:
-    case 3:
-    case 5:
-      e = DIT;
-      break;
-    case 1:
-    case 4:
-      e = DAH;
-      break;
-    case 2:
-    case 6:
-      e = CHARSPACE;
-      break;
-    case 7:
-      e = WORDSPACE;
+  KeyingStatus ks = keyer.service() ; // check and update timing and status
+  if( ks.busy == IDLE ) {
+    byte ps = paddle.check() ;
+    switch (ps) {
+      case 0: keyer.sendElement( NO_ELEMENT ) ; break ;
+      case 3: keyer.sendElement( ks.last == DIT ? DAH : DIT ); break ;
+      default: keyer.sendElement( (ElementType) ps );
     }
-    keyingInterface.sendElement(e);
   }
 }
