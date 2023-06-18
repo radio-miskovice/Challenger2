@@ -5,8 +5,9 @@
  * called separately.
  */
 void PaddleInterface::init() {
-  pinMode( pinPaddleRight, INPUT_PULLUP );
-  pinMode( pinPaddleLeft, INPUT_PULLUP );
+
+  pinMode( pinPaddleRight, INPUT );
+  pinMode( pinPaddleLeft, INPUT );
 }
 
 /**

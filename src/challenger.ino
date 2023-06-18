@@ -10,8 +10,7 @@ void setup() {
   keyer.sendElement(DAH);
   while( keyer.service().busy == BUSY );
   delay(500);
-  Serial.begin(57600);
-  Serial.println("OK");
+
 }
 
 byte last = 0 ;
