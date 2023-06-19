@@ -51,7 +51,7 @@ precisely: tens of milliseconds, e.g. 40 ms unit time for 30 WPM), each function
 component can check time and carry out its current action accordingly in every loop
 iteration without causing any congestions.
 
-It is unnecessary to mention that the idea of event loop is a perfect fit to the basic
+It is unnecessary to mention that the idea of event loop is a perfect fit with the basic
 Arduino concept of organizing all the code into two main functions, `setup()` and `loop()`.
 
 ### Main Functional Components
