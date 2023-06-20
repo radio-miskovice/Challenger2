@@ -10,7 +10,7 @@ versions of hardware ([OK1RR](https://ok1rr.com) "smallest keyer" [Tinykeyer](ht
 In the meantime, I also built [Spider Keyer](http://ok1fig.nagano.cz/SpiderKeyer/SpiderKeyer.htm)
 by [Peter, OK1FIG](https://ok1fig.nagano.cz), and burned his firmware in. What I liked
 most about Peter's code is his successful endeavour to unmessify and unspaghettify the
-original K3NG code by reducing features and options the the absolute minimum needed.
+original K3NG code by reducing features and options to the absolute minimum needed.
 What I liked at first was also his decision to design his [own communication protocol](http://ok1fig.nagano.cz/SpiderKeyer/SpiderKeyerSpecs.htm)
 ("Spider protocol"), a fresh, from-scratch simple protocol replacing complicated Winkeyer
 protocol ([version 1](https://k1el.tripod.com/files/Winkey10.pdf), [version 2](https://k1el.tripod.com/WinkeyUSBman.pdf),
