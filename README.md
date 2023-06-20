@@ -54,6 +54,16 @@ iteration without causing any congestions.
 It is unnecessary to mention that the idea of event loop is a perfect fit with the basic
 Arduino concept of organizing all the code into two main functions, `setup()` and `loop()`.
 
+The main difference between *Challenger 2* and previously known source code is that I abandoned
+any timing code that would take control for the whole timing interval. Instead, there is a time-check
+method that remembers initial system time of the current keying function (key down for dit,
+key down for dash or key up for interelement pause), reads the current system time and if 
+"time is up" performs a trivial action, which is usually level change of one or two output ports.
+
+Following this approach borrowed from the basic concept of *nodejs*, every loop iteration actually 
+takes very short time, probably hardly reaching 1 ms, which is anyway the minimum timing unit 
+in such a simple keyer program.
+
 ### Main Functional Components
 
 Main program setup and the main event loop are implemented in Arduino framework functions
