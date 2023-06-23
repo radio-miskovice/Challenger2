@@ -26,6 +26,13 @@ enum KeyerModeEnum
   ULTIMATIC = 2
 };
 
+enum KeyingSource
+{
+  SRC_PADDLE,
+  SRC_BUFFER,
+  SRC_COMMAND
+};
+
 class KeyingInterface
 {
 
@@ -43,12 +50,14 @@ private:
   KeyingFlags flags = { tone: ENABLED, ptt: ENABLED, key: ENABLED };
   KeyingStatus status = { busy : IDLE, force : OFF, ptt : OFF, key : OFF, current : NO_ELEMENT, last: NO_ELEMENT };
   KeyerModeEnum mode = IAMBIC_A ;
+  KeyingSource currentSource = SRC_PADDLE ;
 
   // keying parameter settings 
   word unit = 50;          // default timing unit is 50 msec = 24 WPM
   word weighting = 50 ;    // DIT duration in percent, element space is then 100 - weighting
-  word ditDahFactor = 300 ;   // DAH duration in percent of DIT element time including weighting
-  word toneFreq = 600 ;    // default sidetone frequency
+  word ditDahFactor = 300 ;     // DAH duration in percent of DIT element time including weighting
+  word toneFreq = 600 ;         // default sidetone frequency
+  byte lastPaddleInput = 0 ;    // remember last ultimatic decision 
  
   // timing variables
   unsigned long onTimer; // countdown timer for mark time in high-level sending
@@ -59,7 +68,6 @@ private:
   word trimToneFreq( word hz ); // trim tone frequency to stay between limits or keep zero
   void setKey(OnOffEnum onOff); // low-level key control
   void setPtt(OnOffEnum onOff); // low-level PTT control
-  void newCurrentElement(ElementType element); // set status, onTimer and offTimer accordingly
 
 public:
   void init();  // port setup
@@ -69,8 +77,10 @@ public:
   void setMode(KeyerModeEnum newMode);
   void setTone(word hz);   // low-level sidetone control
   void setTimingParameters(byte wpm, word aDahRatio = 0, word aWeighting = 0); // set time constants for given WPM speed, DAH:DIT ratio and weighting
-  void setToneFreq(word hz);                                 // set tone frequency for high-level sending
-  KeyingStatus sendElement( ElementType element ); // start element immediately or put it in queue
+  void setToneFreq(word hz);                       // set tone frequency for high-level sending
+  KeyingStatus sendElement(ElementType element, bool addCharSpace = false); // set status, onTimer and offTimer accordingly
+  // KeyingStatus sendElement( ElementType element, bool isEndOfChar = false ); // explicit element, play immediately 
+  KeyingStatus sendPaddleElement( byte ); // determine element from paddle input and mode, and play it
   KeyingStatus service(); // read current millis, update timers, ports and status accordingly and return new service status
 };
 

@@ -8,7 +8,7 @@ void blik(bool);
 unsigned long blikTime = 0 ;
 
 // data type
-enum KeyingSource { SRC_PADDLE, SRC_BUFFER, SRC_COMMAND } ;
+
 /* GLOBAL VARIABLES */
 KeyingSource keySource = SRC_PADDLE ;
 int speedPaddles = 25 ;
@@ -36,11 +36,7 @@ void loop() {
   KeyingStatus ks = keyer.service() ; // check and update timing and status
   if( ks.busy == IDLE ) {
     byte ps = paddle.check() ;
-    switch (ps) {
-      case 0: keyer.sendElement( NO_ELEMENT ) ; break ;
-      case 3: keyer.sendElement( ks.last == DIT ? DAH : DIT ); break ;
-      default: keyer.sendElement( (ElementType) ps );
-    }
+    keyer.sendPaddleElement(ps);
   }
 }
 

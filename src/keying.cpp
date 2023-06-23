@@ -139,11 +139,11 @@ KeyingStatus KeyingInterface::service() {
  * Set element timers and status according to element.
  * @param element new current element to set up
  */
-void KeyingInterface::newCurrentElement( ElementType element ) {
+KeyingStatus KeyingInterface::sendElement( ElementType element, bool addCharSpace ) {
   word elementFactor = 100 ;   // 100 for DIT, ditDahFactor for DAH 
   word extraSpaceFactor = 2 ; // 2 for CHARSPACE, 4 for WORDSPACE
   status.current = element ; // set new current element
-  status.busy = BUSY ;     // set new status 
+  status.busy = BUSY ;      // set new status 
   switch( element ) {
     case NO_ELEMENT:
       status.busy = IDLE ;
@@ -155,6 +155,9 @@ void KeyingInterface::newCurrentElement( ElementType element ) {
     case DIT:
       onTimer = ( unit * weighting ) / 50UL ; // DIT duration with weighting
       offTimer = 2 * unit - onTimer ;  // element space duration with weighting
+      if( addCharSpace ) {
+        offTimer += 2 * unit ;
+      }
       // now comes the magic for DAH: multiply by ditDahFactor, but keep current for DIT
       onTimer = (onTimer * elementFactor) / 100UL ;
       setKey( ON );
@@ -171,18 +174,50 @@ void KeyingInterface::newCurrentElement( ElementType element ) {
       break; 
   }
   lastMillis = millis();   // initialize reference timestamp for element timers
+  return status ;
 }
 
 /**
  * Start sending timed element immediately if the keyer is idle,
  * or put new element in waiting queue otherwise.
 */
-KeyingStatus KeyingInterface::sendElement( ElementType element ) {
+/*
+KeyingStatus KeyingInterface::sendElement( ElementType element, bool isEndOfChar ) {
   // if keyer is IDLE, start new element right off
   if( status.busy == IDLE ) {
-    newCurrentElement( element );
+    sendElement( element );
   }
   return status ;
+}
+*/
+/**
+ * @param input paddle input: bit 0 = DIT (1), bit 1 = DAH (2), value 3 = squeeze
+*/
+KeyingStatus KeyingInterface::sendPaddleElement( byte input ) {
+  ElementType nextElement = NO_ELEMENT ;
+  if (mode == ULTIMATIC) {
+    input = (lastPaddleInput ^ input) & input;
+  }
+  switch (input) {
+    case 3: // squeeze; after previous transformation, ultimatic will never have 3
+      nextElement = status.last == DIT ? DAH : DIT ;
+      break;
+    case 0:
+      if( mode == IAMBIC_B ) {
+        switch( lastPaddleInput ) {
+          case 3:
+            nextElement = status.last == DIT ? DAH : DIT;
+            break;
+          default:
+            nextElement = (ElementType) lastPaddleInput ;
+        }
+      }
+      break ; // NO_ELEMENT is already in NextElement, which would be the "else" branch
+    default: // the rest is either DIT or DAH
+      nextElement = (ElementType)lastPaddleInput;
+  }
+  lastPaddleInput = input ;
+  return (sendElement( nextElement ));
 }
 
 /**
@@ -190,5 +225,6 @@ KeyingStatus KeyingInterface::sendElement( ElementType element ) {
  */
 void KeyingInterface::setMode(KeyerModeEnum newMode)
 {
-  mode == newMode;
+  mode = newMode;
+  lastPaddleInput = 0 ; // to prevent race conditions when switching from Iambic to Ultimatic
 }

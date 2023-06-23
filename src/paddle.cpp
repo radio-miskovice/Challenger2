@@ -26,7 +26,7 @@ void PaddleInterface::swap() {
  * If in iambic A and paddles have no contact, delete element buffer (set next element to NO_ELEMENT)
  * @return updated status
  */
-byte PaddleInterface::check(){
+byte PaddleInterface::check() {
     byte portBits = digitalRead(pinPaddleLeft) * DIT + digitalRead(pinPaddleRight) * DAH ;
     portBits = portBits ^ 3 ;
     if( swapPaddle ) {
