@@ -1,12 +1,6 @@
+#include "config_speedcontrol.h"
 
-/**
- * Potentiometer as speed control, variables and handling
- * Code adapted from Petr, OK1FIG 
- * [CC BY-NC-4.0] Creative commons Licence 4.0
- * https://creativecommons.org/licenses/by-nc/4.0/
- * Jindrich Vavruska, jindrich@vavruska.cz
- **/
-#ifdef USE_POTENTIOMETER
+#if defined(POTENTIOMETER)
 
 #include <Arduino.h>
 #include "pins.h"

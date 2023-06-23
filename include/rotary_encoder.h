@@ -1,23 +1,21 @@
 /* ROTARY ENCODER VARIABLES */
-#ifndef ROTARY_ENCODER_H 
+#if !defined(ROTARY_ENCODER_H)
 #define ROTARY_ENCODER_H 
 
-#include <avr/io.h>
-#include <Arduino.h>
-
+#include "config_speedcontrol.h"
 #include "speed_controller.h"
+#include <Arduino.h>
 
 class RotaryEncoder : public SpeedController {
   private: 
-    byte valueIncrement = 0;
+    static void enableInterrupt();
+    static void disableInterrupt();
+    int valueIncrement = 0;
+    int cropValue(int);
   public: 
-    volatile bool isEventPending = false ;
-    RotaryEncoder( byte defaultValue = 25 );
-  void init() override;
-  void update() override;
-  void increment(byte n);
-  void enableInterrupt();
-  void disableInterrupt();
+    void init() override;
+    void update() override;
+    void setValue(int v) override;
 } ;
 
 extern RotaryEncoder encoder ;

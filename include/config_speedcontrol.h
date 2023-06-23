@@ -4,8 +4,10 @@
 // undefine or set to 0 if there is no speed control
 #define CONFIG_SPEEDCONTROL_USE   1
 
-// choose ROTARY for rotary encoder or POTENTIOMETER for potentiometer (no quotes!!!)
-#define CONFIG_SPEED_TYPE ROTARY
+// choose ROTARY for rotary encoder or POTENTIOMETER for potentiometer
+// uncomment the one in use and comment the other one
+#define CONFIG_SPEED_TYPE_ROTARY
+// #define CONFIG_SPEED_TYPE_POTENTIOMETER
 
 /** ----- Rotary encoder configuration parameters ----- **/
 

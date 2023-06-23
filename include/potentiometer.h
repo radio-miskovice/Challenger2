@@ -1,10 +1,9 @@
 
-#ifndef POTENTIOMETER_CTRL_H
-#define POTENTIOMETER_CTRL_H
+#ifndef POTENTIOMETER_H
+#define POTENTIOMETER_H
 
+#include "config_speedcontrol.h"
 #include <Arduino.h>
-#include "features.h"
-#include "pins.h"
 #include "speed_controller.h"
 
 // minimum time to elapse between measurements
@@ -25,7 +24,7 @@ class Potentiometer : public SpeedController
   void update() override;
 };
 
-#ifdef USE_POTENTIOMETER
+#if CONFI
 extern Potentiometer potentiometer ;
 #endif
 

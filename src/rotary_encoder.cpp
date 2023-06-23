@@ -7,16 +7,13 @@
 #include <avr/io.h>
 #include <Arduino.h>
 
-#include "pins.h"
-#include "core.h"
-#include "core_variables.h"
+#include "config_speedcontrol.h"
 #include "rotary_encoder.h"
 
-volatile int8_t encoder_value = 0;
-volatile boolean encoder_event_pending = false ;
+#if defined (CONFIG_SPEED_TYPE_ROTARY)
 
 /* Rotary encoder vector and mask calculation */
-#if PIN_ROTARY_CLOCK > 1 && PIN_ROTARY_CLOCK < 8
+#if CONFIG_SPEED_ROTARY_CLOCK > 1 && CONFIG_SPEED_ROTARY_CLOCK < 8
 #define ROT_INT_VECTOR PCINT2_vect
 #define ROT_INT_MASK_REG PCMSK2
 #define ROT_INT_MASK (1 << (PIN_ROTARY_CLOCK))
@@ -24,15 +21,15 @@ volatile boolean encoder_event_pending = false ;
 #define ROT_PINS PIND
 #define ROT_PC_INTERRUPT
 
-#elif PIN_ROTARY_CLOCK > 7 && PIN_ROTARY_CLOCK < 14
+#elif CONFIG_SPEED_ROTARY_CLOCK > 7 && CONFIG_SPEED_ROTARY_CLOCK < 14
 #define ROT_INT_VECTOR PCINT0_vect
 #define ROT_INT_MASK_REG PCMSK0
-#define ROT_INT_MASK (1 << (PIN_ROTARY_CLOCK - 8))
+#define ROT_INT_MASK (1 << (CONFIG_SPEED_ROTARY_CLOCK - 8))
 #define ROT_PCIE_MASK (1 << PCIE0)
 #define ROT_PINS PINB
 #define ROT_PC_INTERRUPT
 
-#elif PIN_ROTARY_CLOCK > 13 && PIN_ROTARY_CLOCK < 20
+#elif CONFIG_SPEED_ROTARY_CLOCK > 13 && CONFIG_SPEED_ROTARY_CLOCK < 20
 #define ROT_INT_VECTOR PCINT1_vect
 #define ROT_INT_MASK_REG PCMSK1
 #define ROT_INT_MASK (1 << (PIN_ROTARY_CLOCK - 14))
@@ -43,89 +40,89 @@ volatile boolean encoder_event_pending = false ;
 #error "Cannot determine interrupt configuration for rotary encoder"
 #endif
 
-#if PIN_ROTARY_VALUE < 8 
-#define ROT_VALUE_SHIFT PIN_ROTARY_VALUE
+#if CONFIG_SPEED_ROTARY_DATA < 8
+#define ROT_VALUE_SHIFT CONFIG_SPEED_ROTARY_DATA
 #elif PIN_ROTARY_VALUE < 14
-#define ROT_VALUE_SHIFT PIN_ROTARY_VALUE - 8
+#define ROT_VALUE_SHIFT CONFIG_SPEED_ROTARY_DATA - 8
 #else
-#define ROT_VALUE_SHIFT PIN_ROTARY_VALUE - 14
+#define ROT_VALUE_SHIFT CONFIG_SPEED_ROTARY_DATA - 14
 #endif
 
-RotaryEncoder encoder = RotaryEncoder();
+RotaryEncoder encoder ;
 
-RotaryEncoder::RotaryEncoder( byte defaultValue ) {
-  value = defaultValue ;
-}
+volatile bool isEventPending = false ; // indicates need to update rotary encoder value
+volatile int  interruptIncrement = 0 ; // increment accumulated from ISR
 
-void RotaryEncoder::increment( byte n ) { valueIncrement = n ; isEventPending = true; }
-
-void RotaryEncoder::update() {
-  if( isEventPending ) {
-    PCICR &= ~ROT_PCIE_MASK; // disable rotary interrupt while updating
-    hasChanged = !!valueIncrement ;
-    value += valueIncrement ;
-    valueIncrement = 0 ;
-    isEventPending = false ;
-    PCICR |= ROT_PCIE_MASK; // enable rotary interrupt
-    if( value < minValue ) value = minValue ;
-    if( value > maxValue ) value = maxValue ;
-  }
-}
-
-void RotaryEncoder::init() {
-  pinMode( PIN_ROTARY_CLOCK, INPUT_PULLUP );
-  pinMode( PIN_ROTARY_VALUE, INPUT_PULLUP );
+/**
+ * Initialize ports and enable interrupt
+ */
+void RotaryEncoder::init()
+{
+  pinMode(CONFIG_SPEED_ROTARY_CLOCK, INPUT_PULLUP);
+  pinMode(CONFIG_SPEED_ROTARY_DATA, INPUT_PULLUP);
   enableInterrupt();
 }
 
+/**
+ * Ensure that value returned is within limits
+ * @param v value intended to be set
+ * @return if v is within limits, returns v, otherwise the low or high limit
+*/
+int RotaryEncoder::cropValue( int v ) {
+  if (v < minValue) return minValue ;
+  if (v > maxValue) return maxValue ;
+  return v ;
+}
+
+/**
+ * @param v new value to be set.
+*/
+void RotaryEncoder::setValue( int v ) {
+  value = cropValue(v);
+}
+
+/**
+ * Update speed control value. In case of rotary encoder check if there are
+ * any data collected by interrupt routine and update the value accordingly.
+ */
+void RotaryEncoder::update()
+{
+  // if(!isEventPending) return ; // do nothing if nothing happened
+  if( interruptIncrement == 0 ) return ;
+  byte _pcicr = PCICR & ROT_PCIE_MASK ; // remember original interrupt state
+  PCICR &= ~ROT_PCIE_MASK; // disable interrupt while reading 
+  valueIncrement = interruptIncrement ;
+  interruptIncrement = 0;
+  isEventPending = false ;
+  if( value + valueIncrement > 0 ) {
+    value = cropValue(value + valueIncrement) ;
+  }
+  PCICR = PCICR | _pcicr; // return original value - enable interrupt if previously enabled
+}
+
+/**
+ * Enables interrupt to act
+ */
 void RotaryEncoder::enableInterrupt() {
   ROT_INT_MASK_REG = ROT_INT_MASK;
   PCICR |= ROT_PCIE_MASK;
-  isEventPending = false;
-  valueIncrement = 0;
 }
 
+/** Disables interrupt */
 void RotaryEncoder::disableInterrupt()
-{
-  PCICR &= ~ROT_PCIE_MASK;
-  isEventPending = false ;
-  valueIncrement = 0;
-}
-
-void check_rotary_encoder()
-{
-  if( encoder.isEventPending ) {
-    setSpeed(wpm + encoder_value);
-    encoder_value = 0;
-    encoder_event_pending = false ;
-    speedIsSetManually = true ; 
-  }
-}
-
-#ifdef ROT_PC_INTERRUPT // if encoder interrupt is on PCINT
-
-// Enables paddle interrupt
-void rotary_interrupt_enable()
-{
-  ROT_INT_MASK_REG = ROT_INT_MASK;
-  PCICR |= ROT_PCIE_MASK;
-  encoder_event_pending = false ;
-}
-
-// Disables paddle interrupt
-void rotary_interrupt_disable()
 {
   PCICR &= ~ROT_PCIE_MASK;
 }
 
 ISR(ROT_INT_VECTOR)
 {
-  if( !encoder.isEventPending ) {
+  // if( !isEventPending ) {
     byte state = ROT_PINS ;
     if( state & ROT_INT_MASK ) {
       state = (state >> (ROT_VALUE_SHIFT)) & 1 ;
-      encoder.increment( 1 - 2*state );
+      interruptIncrement += ( 1 - 2*state );
+      isEventPending = true ;
     }
-  }
+  //}
 }
-#endif // ROT_PC_INTERRUPT
+#endif

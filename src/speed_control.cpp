@@ -1,15 +1,15 @@
-#include "features.h"
+#include "config_speedcontrol.h"
 
-#ifdef USE_POTENTIOMETER
-
-// use potentiometer as speed control
-#include "potentiometer.h"
-SpeedController *speedControl = &potentiometer;
-
-#elif defined(USE_ROTARY_ENCODER)
+#if defined (CONFIG_SPEED_TYPE_ROTARY)
 
 // use rotary encoder as speed control
 #include "rotary_encoder.h"
 SpeedController *speedControl = &encoder;
+
+#elif defined (CONFIG_SPEED_TYPE_POTENTIOMETER)
+
+// use potentiometer as speed control
+#include "potentiometer.h"
+SpeedController *speedControl = &potentiometer;
 
 #endif // USE_POTENTIOMETER

@@ -3,18 +3,24 @@
 
 #include <Arduino.h>
 
+enum SpeedControlMode {
+  PADDLE_SPEED = 0, 
+  BUFFER_SPEED = 1,
+  COMMAND_SPEED = 2
+};
+
 class SpeedController {
   protected:
-    byte value ;
-    byte minValue = 0;
-    byte maxValue = 0;
+    int value = 20     ; // current speed in WPM
+    byte minimumWk =  5 ; // minimum value for WK2 protocol
+    byte minValue  =  5 ; // minimum value for potentiometer
+    byte maxValue  = 40 ; // maximum value
   public:
-    bool hasChanged = false ;
-    virtual void init() {};
-    virtual void update() {};
-    byte getValue() { hasChanged = false; return value; };
-    void setMaxValue( byte max ) { maxValue = max ; };
-    void setMinValue( byte min ) { minValue = min ; };
+    virtual void init() ;  // method to be overridden by implementation according to hardware
+    virtual void update(); // method to be overridden by implementation according to hardware
+    virtual void setValue(int); // 
+    void setMinMax( byte min, byte max) ;
+    byte getValue() ;
 };
 
 #endif
