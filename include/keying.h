@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include "config_keying.h"
-#include "challenger_types.h"
+#include "challenger.h"
 
 //typedef
 struct KeyingFlags
@@ -10,20 +10,11 @@ struct KeyingFlags
   EnableEnum key : 1;
 } ;
 
-struct KeyingStatus {
-  BusyEnum busy : 1;        
-  OnOffEnum force : 1; 
-  OnOffEnum ptt : 1;   
-  OnOffEnum key : 1;   
-  ElementType current: 3; 
-  ElementType last: 3;
-};
-
-enum KeyerModeEnum
+enum KeyerMode
 {
-  IAMBIC_A = 0,
-  IAMBIC_B = 1,
-  ULTIMATIC = 2
+  IAMBIC_A = 1,
+  IAMBIC_B = 2,
+  ULTIMATIC = 3
 };
 
 enum KeyingSource
@@ -33,8 +24,22 @@ enum KeyingSource
   SRC_COMMAND
 };
 
-class KeyingInterface {
+struct KeyingStatus {
+  BusyEnum busy : 1;        
+  OnOffEnum force : 1; 
+  OnOffEnum ptt : 1;   
+  OnOffEnum key : 1;  
+  KeyingSource source : 2 ; 
+  KeyerMode mode : 2 ;
+  EnableEnum buffer : 1 ;
+};
 
+struct InternalStatus {
+  ElementType current: 3; 
+  ElementType last: 3;
+};
+
+class KeyingInterface {
 private:
   // keying interface object is supposed to be used as singleton, hence we use static constants
   static const byte _keyline1 = CONFIG_KEYING_KEYLINE1; // key line, active HIGH
@@ -45,11 +50,16 @@ private:
   static const word minToneFreq = CONFIG_SIDETONE_MIN_FREQ; // minimum sidetone frequency
   static const word maxToneFreq = CONFIG_SIDETONE_MAX_FREQ; // maximum sidetone frequency
 
-  // operational parameters and status
+  // operational parameters, internal parameters and status
   KeyingFlags flags = { tone: ENABLED, ptt: ENABLED, key: ENABLED };
-  KeyingStatus status = { busy : IDLE, force : OFF, ptt : OFF, key : OFF, current : NO_ELEMENT, last: NO_ELEMENT };
-  KeyerModeEnum mode = IAMBIC_A ;
-  KeyingSource currentSource = SRC_PADDLE ;
+  KeyingStatus status = { busy : READY, force : OFF, ptt : OFF, key : OFF,  source : SRC_PADDLE, mode : IAMBIC_A, buffer : ENABLED };
+  InternalStatus internal = { current : NO_ELEMENT, last: NO_ELEMENT };
+  // KeyerMode mode = IAMBIC_A ;
+  // KeyingSource currentSource = SRC_PADDLE ;
+  byte currentMorse = 0 ;
+  byte nextMorse = 0 ;
+
+  // binary morse code buffer memory
 
   // keying parameter settings 
   word unit = 50;          // default timing unit is 50 msec = 24 WPM
@@ -74,18 +84,16 @@ public:
   void enableKey(EnableEnum enable); // enable or disable KEY output
   void enablePtt(EnableEnum enable); // enable or disable PTT output
   void enableTone(EnableEnum enable); // enable or disable tone
-  void setMode(KeyerModeEnum newMode);
+  void setMode(KeyerMode newMode);
   void setTone(word hz);   // low-level sidetone control
+  void setSource( KeyingSource );
   void setTimingParameters(byte wpm, word aDahRatio = 0, word aWeighting = 0); // set time constants for given WPM speed, DAH:DIT ratio and weighting
   void setToneFreq(word hz);                       // set tone frequency for high-level sending
-  KeyingStatus sendElement(ElementType element, bool addCharSpace = false); // set status, onTimer and offTimer accordingly
-  // KeyingStatus sendElement( ElementType element, bool isEndOfChar = false ); // explicit element, play immediately 
-  KeyingStatus sendPaddleElement( byte ); // determine element from paddle input and mode, and play it
+  void sendElement(ElementType element, bool addCharSpace = false); // set status, onTimer and offTimer accordingly
+  void sendPaddleElement( byte ); // determine element from paddle input and mode, and start sending
+  bool sendCode ( byte ); // send binary morse code; return true if accepted, false otherwise
   KeyingStatus service( byte ); // read current millis, update timers, ports and status accordingly and return new service status
-  // void checkPaddle( byte ); // check paddle status before end of element
-  // DEBUGGING 
-  unsigned long getOnTime();
-  unsigned long getOffTime();
+
 };
 
 extern KeyingInterface keyer;

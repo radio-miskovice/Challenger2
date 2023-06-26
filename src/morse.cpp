@@ -6,46 +6,33 @@
  * Jindrich Vavruska, jindrich@vavruska.cz
  **/
 
-// #include <Arduino.h>
-// #include "pins.h"
-// #include "core_variables.h" // need sending_mode
-// #include "core.h"           // need control_element_duration()
-// #include "config.h"
-// #include "protocol.h"
-// #include "paddle_interface.h"
-// #include "keyer_interface.h"
-// #include "command_mode.h"
 #include "morse.h"
 
-MorseEngine morseEngine = MorseEngine();
+MorseEngine morse = MorseEngine();
 
 /** MORSE CODE CONVERSION TABLE
  * How to read code:
  * Each morse code character is binary encoded. It is interpreted from MSB to LSB
  * (MSB - first dit or dash) 0 = dit, 1 = dash.
  *
- * The least significant bit 1 in the code is end marker ("stop bit") => 0x80 means nothing to send.
- * 0x00 represents NULL, or invalid morse code.
- * Code is interpreted by reading MSB, then shift left. Width must be limited to 8 bits! This is different
- * from "inverse" binary encoding using shift right, which ends with 0x01 or 0x00 regardless of data width.
+ * The least significant bit 1 in the code is end marker ("stop bit") => 0x80 means send end-of-character space (CHARSPACE).
+ * 0x00 represents NULL, or invalid morse code, always to be interpreted as "nothing to send".
  *
- * Maximum possible code length is hence 7 elements.
- * This code table is compatible with K3NG (Winkeyer 2 protocol?), includes some rarely used characters
- * and prosigns (+ = AR, & = AS, * = BK, '(' = KN, > = SK)
+ * Code is interpreted by reading MSB, then shift left. Bit value 1 means DAH, bit value 0 means DIT.
+ * Width is limited by 8 bits. Maximum possible code length is hence 7 elements.
  *
- * characters [, ], \ are encoded as 0 (no prosign or special code) and they are reserved for use
- * in text-mode commands in serial link protocol. However, this module has nothing to do with the protocol,
- * it only converts ASCII to morse code and processes morse code.
+ * This code table is based on recommendation ITU-R M.1677-1
+ * Morse code for exclamation (!) is adopted from https://morsecode.world/international/morse2.html
+ * Dollar sign ($), semicolon (;), underscore (_) are copied form somewhere, probably K3NG source code
+ * Signals/prosigns: + = AR, & = AS, * = BK, '(' = KN, > = SK should be compatible with K3NG and WinKeyer protocol
  *
  */
 const byte CODE[] = {
-    //-- special characters --//
-
-    0xFF,        // space; will send 3U letter pause
-    0b11001110,  // !
-    0b01001100,  // " AU
+    MORSE_SPACE, // space; will send +4T pause, together with 3T charspace = 7T
+    0b10101110,  // ! unofficial
+    0b01001010,  // " RR
     0,           // #
-    0b00010011,  // $ VU
+    0b00010011,  // $ VU, unofficial
     0,           // %
     0b01000100,  // & AS
     0b01111010,  // ' JN
@@ -53,7 +40,7 @@ const byte CODE[] = {
     0b10110110,  // ) KK
     0b10001011,  // * BK
     0b01010100,  // + AR
-    0b11001110,  // , = ! --..--
+    0b11001110,  // , 
     0b10000110,  // -
     0b01010110,  // .
     0b10010100,  // stroke /    //--- numbers --//
@@ -68,7 +55,7 @@ const byte CODE[] = {
     0b11100100,  // 8
     0b11110100,  // 9    //--- punctuation ---//
     0b11100010,  // : OS
-    0b10101010,  // ; NC
+    0b10101010,  // ; NC unofficial
     0b01010100,  // < = + = AR
     0b10001100,  // = BT
     0b00010110,  // > SK
@@ -104,23 +91,21 @@ const byte CODE[] = {
     0,           // backslash
     0,           // ]
     0,           // ^ caret
-    0b001101100, // _ underscore UK
+    0b001101100, // _ underscore UK, unofficial
 };
 const word CODE_SIZE = sizeof(CODE) / sizeof(CODE[0]);
-// unsigned long last_element_ms = 0;
 
 /**
  * @param ascii ASCII letter to be converted
  * @return zero if ascii is not defined in Morse code, otherwise returns binary morse code
  */
-unsigned int MorseEngine::asciiToCode(byte ascii)
+byte MorseEngine::asciiToCode(byte ascii)
 {
-  if (ascii < 0x20 || ascii >= 0x7B)
-    return 0;
-  if (ascii == '|')
-    return 0x180; // half space
-  if (ascii > 0x60)
-    ascii -= 0x20;
+  if (ascii == '|') return MORSE_CHARSPACE; // half space
+  if (ascii < 0x20 || ascii >= 0x7B) return 0; // out of range
+  // convert lowercase letter to uppercase
+  if (ascii > 0x60) ascii -= 0x20;
+  // finally, subtract code table offset
   ascii -= 0x20;
   return (CODE[ascii]);
 }
@@ -144,7 +129,7 @@ unsigned int MorseEngine::asciiToCode(byte ascii)
  * Ю U+042E  ю U+044E  D0AE, D0CE : morse code ..-- (binary 0b00111000, hex 0x38)
  * Я U+042F  я U+044F  D0AF, D0CF : morse code .-.- (binary 0b01011000, hex 0x58)
  */
-unsigned int MorseEngine::utf8ToCode(byte prefix, byte utf8Char)
+byte MorseEngine::utf8ToCode(byte prefix, byte utf8Char)
 {
   unsigned int utf8Code = 256 * prefix + utf8Char;
   switch (utf8Code)
@@ -174,41 +159,6 @@ unsigned int MorseEngine::utf8ToCode(byte prefix, byte utf8Char)
   return 0;
 }
 
-ElementType MorseEngine::getNextElement() {
-  ElementType next = NO_ELEMENT ;
-  switch( currentCode ) {
-    case 0xFF: 
-      next = WORDSPACE ;
-      currentCode = 0;
-      break;
-    case 0xFD:
-      next = HALFSPACE ;
-      currentCode = 0;
-      break; 
-    case 0x00:
-      next = NO_ELEMENT;
-      currentCode = 0;
-      break;
-    case 0x80:
-      next = CHARSPACE ;
-      currentCode = 0; 
-      break;
-    default:
-      next = (currentCode & 0x80) == 0 ? DIT : DAH ;
-      currentCode *= 2 ;
-  }
-  return next ;
-}
-/**
- * @param ascii ASCII character to be sent
- *
- * If the ascii has no morse code, sending mode is not changed and nothing happens
- **/
-void MorseEngine::sendAsciiChar(byte ascii)
-{
-  currentCode = asciiToCode(ascii);
-}
-
 /**
  * Decodes morse code collected from paddles. Collected code has high stop bit
  * and LSB last morse code element, LSB-aligned. Therefore it must be shifted in order
@@ -231,11 +181,4 @@ char MorseEngine::decodeMorse(word code) {
     if (code == CODE[result]) return (result + 0x20);
   }
   return 0;
-}
-
-/**
- * Stop sending current character
-*/
-void MorseEngine::cancelSend() {
-  currentCode = 0 ;
 }
