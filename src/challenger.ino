@@ -16,7 +16,7 @@ int speedPaddles = 25 ;
 int speedBuffer = 20 ;
 int speedCommand = 20 ;
 unsigned long currentTime ;
-unsigned long lastTime;
+unsigned long nextBufferTime;
 
 void setup() {
   currentTime = millis();
@@ -28,6 +28,7 @@ void setup() {
   speedControl->init();
   keyer.enableTone(ENABLED);
   // debugging
+  Serial.begin(57600);
   keyer.setTone(300);
   digitalWrite( LED, HIGH );
   delay(133);
@@ -35,15 +36,12 @@ void setup() {
   delay(133);
   digitalWrite( LED, LOW );
   keyer.setTone(0);
-  // Serial.begin(57600);
-  // lastKs.x = 0xFFFF ;
-  // lastPs = 7 ;
-  // Serial.println(millis());
-  lastTime = millis();
-  // lastTs = lastTime - 1; 
+  nextBufferTime = millis();
 }
 
 char message[100];
+char qbf[] = "= QUICK BROWN FOX JUMPS OVER THE LAZY DOG.  / 1234567890 + ";
+int index = 0 ;
 
 void loop() {
   currentTime = millis();
@@ -55,10 +53,23 @@ void loop() {
     blik(true);
   }
   else blik(false);
-  // keyer
-  byte ps = paddle.check();
-  KeyingStatus ks = keyer.service( ps ) ; // check and update timing and status
-  
+  // paddle
+  byte paddleState = paddle.check();
+  KeyingStatus keyerState = keyer.service( paddleState ) ; // check and update timing and status
+  // morse engine - start if not sending from paddles for 3 seconds
+  if( nextBufferTime < currentTime ) {
+    if( paddleState == 0 && keyerState.buffer == ENABLED ) {
+      char c ;
+      byte code ;
+      do {
+        c = qbf[index++];
+        if( c == 0 ) index = 0 ;
+      } while ( c == 0 );
+      code = morse.asciiToCode( c );
+      if( code ) keyer.sendCode( code );
+    }
+  }
+  if( paddleState > 0 ) {nextBufferTime = currentTime + 3000UL ; index = 0 ; } // if paddle touched, start buffer text after 3 secs
 }
 
 // for debugging; remove in production code
@@ -71,16 +82,3 @@ void blik(bool start) {
     digitalWrite( LED, LOW );
   }
 }
-
-/* // debug
-void reportKeyer(KeyingStatus s ) {
-  sprintf( message, " KS %s %s %s", s.busy ? "BUSY" : "IDLE", s.current == 1 ? "DIT" : s.current ? "DAH" : "N/A", s.key ? "ON" : "OFF");
-  Serial.println(message);
-  sprintf( message, " ON: %lu, OFF: %lu", keyer.getOnTime(), keyer.getOffTime());
-  Serial.println( message );
-}
-
-void reportPaddle(byte x) {
-  sprintf(message, "PADDLE %s", (x == 0? "FREE" :(x == 3 ? "SQUEEZE": (x==2 ? "DAH" : "DIT"))));
-  Serial.println(message);
-} */

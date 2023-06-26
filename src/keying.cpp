@@ -15,7 +15,7 @@ void KeyingInterface::init()
   if (_cpo_key  > 0)  pinMode(_cpo_key, OUTPUT);
   onTimer = 0UL ;
   offTimer = 0UL ;
-  status.busy = IDLE ;
+  status.busy = READY ;
 }
 
 /**
@@ -58,6 +58,14 @@ void KeyingInterface::setTone(word hz)
   if( hz > 0)
     tone(_sidetone, hz); 
   else noTone(_sidetone);
+}
+
+/**
+ * @param hz when hz = 0 stops sidetone, otherwise starts sidetone with frequency hz Hz
+ */
+void KeyingInterface::setSource(KeyingSource s)
+{
+  status.source = s ;
 }
 
 /**
@@ -104,63 +112,119 @@ void KeyingInterface::enableTone(EnableEnum enable)
 
 /**
  * This method checks time, services output control timers and updates line levels and sidetone as necessary.
- * @return current service status: IDLE (no timing in progress), BUSY (timing in progress), DIT (sending DIT), DAH (sending dah), SPACE (sending char space or wordspace)
+ * @return current service status: READY (no timing in progress), BUSY (timing in progress), DIT (sending DIT), DAH (sending dah), SPACE (sending char space or wordspace)
 */
 KeyingStatus KeyingInterface::service( byte ps ) {
-  if( status.busy == IDLE ) {
+  unsigned long interval = currentTime - lastMillis ;
+  // if sending from paddle, check paddles if ready to send next
+  if( status.source == SRC_PADDLE && status.busy == READY ) {
     sendPaddleElement( ps );
     return status ;
-  } 
-  unsigned long interval = currentTime - lastMillis ;
+  }
+  // when playing buffer and paddles are touched, act immediately
+  if( status.source == SRC_BUFFER && ps > 0 ) {
+    // paddle is touched while playing buffer => STOP buffer
+    // TODO: test and replace by more adequate timing
+    sendElement( CHARSPACE ); // ensure key off, give time to settle
+    // clear morse code buffer
+    currentMorse = 0;
+    nextMorse = 0;
+    status.buffer = ENABLED ;
+    // switch to paddle mode
+    status.source = SRC_PADDLE ;
+    internal.current = NO_ELEMENT ;
+    internal.last = NO_ELEMENT ;
+  }
+  // after immediate actions check scheduled actions
   if( interval == 0UL ) return status ; // timing in progress, but elapsed zero time, hence no change
+  lastMillis = currentTime ; // remember new current time
 
-  lastMillis = currentTime ;
-  // key on timing
+  if (status.source == SRC_BUFFER && status.busy == READY)
+  {
+    if (currentMorse == 0) { // current code is finished
+      if (nextMorse != 0) { // fetch next
+        currentMorse = nextMorse;
+        nextMorse = 0; // clear FIFO
+        status.buffer = ENABLED;
+      }
+      // otherwise switch to paddle mode if no more codes in buffer
+      else { status.source = SRC_PADDLE; }
+    }
+    // now handle non-empty morse codes
+    switch (currentMorse) {
+      case 0: break;
+      case MORSE_SPACE :
+        sendElement( WORDSPACE );
+        currentMorse = 0 ; // remove the explicit space code
+        break ;
+      case MORSE_CHARSPACE:
+        sendElement( CHARSPACE );
+        break ;
+      default:
+        ElementType e = ((currentMorse & 0x80) == 0) ? DIT : DAH;
+        sendElement(e); // prepare next element and continue to timing section
+    }
+    currentMorse <<= 1; // shift to next element
+  }
+
+  // timing section for key=ON
   if( onTimer > 0UL ) {
     if( onTimer < interval ) onTimer = 0 ; 
     else onTimer = onTimer - interval ;
     if( onTimer == 0 ) {
-      setKey( OFF );
-      setTone( 0 );
-      lastBPaddle = PADDLE_FREE ;
+      setKey( OFF ); // switch off key line
+      setTone( 0 );  // switch off sidetone
+      lastBPaddle = PADDLE_FREE ; // clear paddle memory for Iambic B
     }
     return status ;
   }
 
-  // key off timing 
+  // timing section for key=OFF 
   if( offTimer > 0 ) {
     lastBPaddle = lastBPaddle | ps ;
     if( offTimer < interval ) offTimer = 0 ;
     else offTimer = offTimer - interval ;
     if( offTimer == 0 ) { 
-       status.last = status.current ;
-       status.current = NO_ELEMENT ;
-       status.busy = IDLE ;
+       internal.last = internal.current ;
+       internal.current = NO_ELEMENT ;
+       status.busy = READY ;
       }
     }
-  return status ;
+  return status ; // always return status to allow for proper interaction with other components
 }
 
 /**
  * @param input paddle input: bit 0 = DIT (1), bit 1 = DAH (2), value 3 = squeeze
  */
-KeyingStatus KeyingInterface::sendPaddleElement(byte input)
+void KeyingInterface::sendPaddleElement(byte input)
 {
   ElementType nextElement;
-  if (mode == ULTIMATIC) // input conditioning for Ultimatic mode
+  // if playing text buffer and paddle was touched, break and add a short pause; NO KEYING!
+  if( status.source == SRC_BUFFER && input != PADDLE_FREE ) {
+    status.source = SRC_PADDLE ; //switch to paddle status.mode
+    sendElement( CHARSPACE );
+    return ;
+  }
+  // for ultimatic code, get unequivocal value of either dot or dash
+  // i.e. special handling of squeeze to detect which paddle was added 
+  if (status.mode == ULTIMATIC) 
   {
       input = (lastUltimaticPaddle ^ input) & input;
+      // at this point {input} is one of DOT, DAH, PADDLE_FREE 
       lastUltimaticPaddle = input;
   }
-  else if (mode == IAMBIC_B && input == PADDLE_FREE) // use memory in case of Iambic B mode
+  // in case of IAMBIC B, substitute no paddle contact by paddle memory
+  else if (status.mode == IAMBIC_B && input == PADDLE_FREE) // use memory in case of Iambic B status.mode
   {
       input = lastBPaddle;
       lastBPaddle = PADDLE_FREE;
   }
+  // at this point we have final "paddle value"
+  // next element is determined accordingly 
   switch (input) 
   {
   case 3: // squeeze; after previous transformation, ultimatic will never have 3
-      nextElement = (status.last == DIT) ? DAH : DIT;
+      nextElement = (internal.last == DIT) ? DAH : DIT;
       break;
   case 0:
       nextElement = NO_ELEMENT;
@@ -168,22 +232,22 @@ KeyingStatus KeyingInterface::sendPaddleElement(byte input)
   default:   // the rest is either DIT or DAH
       nextElement = (ElementType)input;
   }
-  return (sendElement(nextElement));
+  sendElement(nextElement);
 }
 
 /***
  * Set element timers and status according to element.
  * @param element new current element to set up
  */
-KeyingStatus KeyingInterface::sendElement( ElementType element, bool addCharSpace ) {
+void KeyingInterface::sendElement( ElementType element, bool addCharSpace ) {
   word elementFactor = 100 ;   // 100 for DIT, ditDahFactor for DAH 
   word extraSpaceFactor = 2 ; // 2 for CHARSPACE, 4 for WORDSPACE
-  status.current = element ; // set new current element
+  internal.current = element ; // set new current element
   status.busy = BUSY ;      // set new status 
   lastBPaddle = PADDLE_FREE ;
   switch( element ) {
     case NO_ELEMENT:
-      status.busy = IDLE ;
+      status.busy = READY ;
       onTimer = 0UL ;
       offTimer = 0UL ;
       break ;
@@ -210,35 +274,31 @@ KeyingStatus KeyingInterface::sendElement( ElementType element, bool addCharSpac
     case CHARSPACE:
       onTimer = 0 ;
       offTimer = unit * extraSpaceFactor + (element == HALFSPACE ? 1 : 0 );
+      setKey(OFF);
+      setTone(0);
       break; 
   }
-  lastMillis = millis();   // initialize reference currentTime for element timers
-  return status ;
+  lastMillis = currentTime ;   // initialize reference currentTime for element timers
 }
 
-/**
- * Start sending timed element immediately if the keyer is idle,
- * or put new element in waiting queue otherwise.
-*/
-/*
-KeyingStatus KeyingInterface::sendElement( ElementType element, bool isEndOfChar ) {
-  // if keyer is IDLE, start new element right off
-  if( status.busy == IDLE ) {
-    sendElement( element );
+bool KeyingInterface::sendCode( byte code ) {
+  if( status.buffer == DISABLED ) return false ; // do not accept character if buffer is full
+  if( code == 0 ) return true ; // accept code 0 but ignore it
+  if( currentMorse == 0 ) currentMorse = code ;
+  else {
+    nextMorse = code ;
+    status.buffer = DISABLED ;
   }
-  return status ;
+  status.source = SRC_BUFFER ;
+  return true ;
 }
-*/
 
 /**
- * Set new mode 
+ * Set new status.mode 
  */
-void KeyingInterface::setMode(KeyerModeEnum newMode)
+void KeyingInterface::setMode(KeyerMode newMode)
 {
-  mode = newMode;
+  status.mode = newMode;
   lastUltimaticPaddle = 0 ; // to prevent race conditions when switching from Iambic to Ultimatic
+  lastBPaddle = 0 ;
 }
-
-
-unsigned long KeyingInterface::getOffTime() { return offTimer; }
-unsigned long KeyingInterface::getOnTime() { return onTimer; }

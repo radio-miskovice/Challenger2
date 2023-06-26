@@ -2,7 +2,7 @@
 #define _PADDLE_H_
 
 #include <Arduino.h>
-#include "challenger_types.h"
+#include "challenger.h"
 #include "config_paddle.h"
 
 #if !defined(CONFIG_PADDLE_LEFT) || !defined(CONFIG_PADDLE_RIGHT) || CONFIG_PADDLE_LEFT == 0 || CONFIG_PADDLE_RIGHT == 0
