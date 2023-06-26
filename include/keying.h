@@ -33,8 +33,7 @@ enum KeyingSource
   SRC_COMMAND
 };
 
-class KeyingInterface
-{
+class KeyingInterface {
 
 private:
   // keying interface object is supposed to be used as singleton, hence we use static constants
@@ -57,7 +56,8 @@ private:
   word weighting = 50 ;    // DIT duration in percent, element space is then 100 - weighting
   word ditDahFactor = 300 ;     // DAH duration in percent of DIT element time including weighting
   word toneFreq = 600 ;         // default sidetone frequency
-  byte lastPaddleInput = 0 ;    // remember last ultimatic decision 
+  byte lastUltimaticPaddle = PADDLE_FREE ;  // remember last ultimatic decision 
+  byte lastBPaddle = PADDLE_FREE ; // paddle memory for Iambic B
  
   // timing variables
   unsigned long onTimer; // countdown timer for mark time in high-level sending
@@ -81,7 +81,11 @@ public:
   KeyingStatus sendElement(ElementType element, bool addCharSpace = false); // set status, onTimer and offTimer accordingly
   // KeyingStatus sendElement( ElementType element, bool isEndOfChar = false ); // explicit element, play immediately 
   KeyingStatus sendPaddleElement( byte ); // determine element from paddle input and mode, and play it
-  KeyingStatus service(); // read current millis, update timers, ports and status accordingly and return new service status
+  KeyingStatus service( byte ); // read current millis, update timers, ports and status accordingly and return new service status
+  // void checkPaddle( byte ); // check paddle status before end of element
+  // DEBUGGING 
+  unsigned long getOnTime();
+  unsigned long getOffTime();
 };
 
 extern KeyingInterface keyer;

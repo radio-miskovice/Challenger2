@@ -5,7 +5,6 @@
  * called separately.
  */
 void PaddleInterface::init() {
-
   pinMode( pinPaddleRight, INPUT );
   pinMode( pinPaddleLeft, INPUT );
 }
@@ -30,7 +29,7 @@ byte PaddleInterface::check() {
     byte portBits = digitalRead(pinPaddleLeft) * DIT + digitalRead(pinPaddleRight) * DAH ;
     portBits = portBits ^ 3 ;
     if( swapPaddle ) {
-      portBits = DAH * (portBits & DIT ? 1 : 0 ) + DIT * (portBits & DAH ? 1 : 0 );
+      portBits = PADDLE_DAH * (portBits & PADDLE_DIT ? 1 : 0) + PADDLE_DIT * (portBits & PADDLE_DAH ? 1 : 0);
     }
     return portBits ;
 }
