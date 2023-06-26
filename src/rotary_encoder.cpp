@@ -116,13 +116,13 @@ void RotaryEncoder::disableInterrupt()
 
 ISR(ROT_INT_VECTOR)
 {
-  // if( !isEventPending ) {
+  if( !isEventPending ) {
     byte state = ROT_PINS ;
     if( state & ROT_INT_MASK ) {
       state = (state >> (ROT_VALUE_SHIFT)) & 1 ;
       interruptIncrement += ( 1 - 2*state );
       isEventPending = true ;
     }
-  //}
+  }
 }
 #endif

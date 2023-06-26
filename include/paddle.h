@@ -9,13 +9,6 @@
 #error "Paddle interface is partially ot fully undefined. Check config_paddle.h"
 #endif
 
-
-struct PaddleStatus {
-  ElementType current: 3 ;
-  ElementType next : 3 ;
-  OnOffEnum touch: 1 ;
-};
-
 class PaddleInterface {
   
   private:
@@ -23,7 +16,6 @@ class PaddleInterface {
   static const byte pinPaddleRight = CONFIG_PADDLE_LEFT ;
   static const byte pinPaddleLeft  = CONFIG_PADDLE_RIGHT ;
 
-  PaddleStatus status = { current: NO_ELEMENT, next: NO_ELEMENT, touch: OFF };
   bool swapPaddle = false ;
   byte lastPaddlePortBits = 0 ;
   byte ultimusBits = 0 ;
