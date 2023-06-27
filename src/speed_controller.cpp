@@ -19,3 +19,7 @@ void SpeedController::setMinMax(byte min, byte max) {
   if( min >= 5 ) { minValue = min ; minimumWk = min ; }
   if( max > min && max >= 15 )  maxValue = max ; 
 }
+
+byte SpeedController::getSpeedWk2() {
+  return (((value - minValue) & 0x3F) | 0x80 );
+}

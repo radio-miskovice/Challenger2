@@ -21,6 +21,7 @@ class SpeedController {
     virtual void setValue(int); // 
     void setMinMax( byte min, byte max) ;
     byte getValue() ;
+    byte getSpeedWk2() ;
 };
 
 #endif

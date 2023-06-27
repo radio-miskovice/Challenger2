@@ -1,7 +1,8 @@
 #include "keying.h"
 #include "paddle.h"
 #include "speed_control.h"
-#include "morse.h"
+// #include "morse.h"
+#include "protocol.h"
 
 // debugging
 unsigned long blikTime = 0 ;
@@ -20,15 +21,16 @@ unsigned long nextBufferTime;
 
 void setup() {
   currentTime = millis();
-  pinMode( LED, OUTPUT );
   keyer.init();
   keyer.setMode(IAMBIC_B);
   keyer.setTimingParameters(speedPaddles, 300, 50);
+  keyer.enableTone(ENABLED);
   paddle.init();
   speedControl->init();
-  keyer.enableTone(ENABLED);
+  protocol.init();
+  // command mode LED
+  pinMode( LED, OUTPUT );
   // debugging
-  Serial.begin(57600);
   keyer.setTone(300);
   digitalWrite( LED, HIGH );
   delay(133);
@@ -40,7 +42,7 @@ void setup() {
 }
 
 char message[100];
-char qbf[] = "= QUICK BROWN FOX JUMPS OVER THE LAZY DOG.  / 1234567890 + ";
+// char qbf[] = "= QUICK BROWN FOX JUMPS OVER THE LAZY DOG.  / 1234567890 + ";
 int index = 0 ;
 
 void loop() {
@@ -53,23 +55,12 @@ void loop() {
     blik(true);
   }
   else blik(false);
-  // paddle
+  protocol.service();
   byte paddleState = paddle.check();
   KeyingStatus keyerState = keyer.service( paddleState ) ; // check and update timing and status
-  // morse engine - start if not sending from paddles for 3 seconds
-  if( nextBufferTime < currentTime ) {
-    if( paddleState == 0 && keyerState.buffer == ENABLED ) {
-      char c ;
-      byte code ;
-      do {
-        c = qbf[index++];
-        if( c == 0 ) index = 0 ;
-      } while ( c == 0 );
-      code = morse.asciiToCode( c );
-      if( code ) keyer.sendCode( code );
-    }
+  if( keyerState.buffer == ENABLED ) { // can send from buffer?
+    keyer.sendCode( protocol.getNextMorseCode() ); // send code or do nothing if got zero
   }
-  if( paddleState > 0 ) {nextBufferTime = currentTime + 3000UL ; index = 0 ; } // if paddle touched, start buffer text after 3 secs
 }
 
 // for debugging; remove in production code

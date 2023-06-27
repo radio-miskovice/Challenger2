@@ -4,18 +4,159 @@
 // Keying interface singleton
 KeyingInterface keyer = KeyingInterface() ;
 
+void KeyingInterface::enableKey(EnableEnum enable)
+{
+  flags.key = enable;
+  if (flags.key == DISABLED) setKey(OFF);
+}
+
+void KeyingInterface::enablePtt(EnableEnum enable)
+{
+  flags.ptt = enable;
+  if (flags.ptt == DISABLED) setPtt(OFF);
+}
+
+void KeyingInterface::enableTone(EnableEnum enable)
+{
+  flags.tone = enable;
+  if (flags.tone == DISABLED)  setTone(OFF);
+}
+
+void KeyingInterface::setFarnsworthWpm( byte wpm ) {
+  farnsWorthWpm = wpm ;
+}
+
 /**
  * initializes Arduino ports
  */
 void KeyingInterface::init()
 {
-  if (_keyline1 > 0)  pinMode(_keyline1, OUTPUT);
-  if (_pttline1 > 0)  pinMode(_pttline1, OUTPUT);
-  if (_sidetone > 0)  pinMode(_sidetone, OUTPUT);
-  if (_cpo_key  > 0)  pinMode(_cpo_key, OUTPUT);
-  onTimer = 0UL ;
-  offTimer = 0UL ;
-  status.busy = READY ;
+  if (pin_keyline1 > 0)
+    pinMode(pin_keyline1, OUTPUT);
+  if (pin_pttline1 > 0)
+    pinMode(pin_pttline1, OUTPUT);
+  if (pin_sidetone > 0)
+    pinMode(pin_sidetone, OUTPUT);
+  if (pin_cpo_key > 0)
+    pinMode(pin_cpo_key, OUTPUT);
+  onTimer = 0UL;
+  offTimer = 0UL;
+  status.busy = READY;
+}
+
+/**
+ * Prepare binary morse code for output.
+ * Effect:
+ *  - ignore morse code 0 (no code, no output)
+ *  - if not set, set keying source to SRC_BUFFER
+ *  - add character to buffer if the buffer is not full
+ * @param code binary code to send
+ * @returns {bool} true on success, false otherwise (i.e. when buffer was already full)
+ * 
+*/
+bool KeyingInterface::sendCode(byte code)
+{
+  if (status.buffer == DISABLED)
+    return false; // do not accept character if buffer is full
+  if (code == 0)
+    return true; // accept code 0 but ignore it
+  if (currentMorse == 0)
+    currentMorse = code;
+  else
+  {
+    nextMorse = code;
+    status.buffer = DISABLED;
+  }
+  status.source = SRC_BUFFER;
+  return true;
+}
+
+/***
+ * Set element timers and status according to element.
+ * @param element new current element to set up
+ */
+void KeyingInterface::sendElement(ElementType element)
+{
+  word elementFactor = 100;   // 100 for DIT, ditDahFactor for DAH
+  word extraSpaceFactor = 2;  // 2 for CHARSPACE, 4 for WORDSPACE
+  internal.current = element; // set new current element
+  status.busy = BUSY;         // set new status
+  paddleMemory = PADDLE_FREE;
+  switch (element)
+  {
+  case NO_ELEMENT:
+    status.busy = READY;
+    onTimer = 0UL;
+    offTimer = 0UL;
+    break;
+  case DAH:
+    elementFactor = ditDahFactor;
+  case DIT:
+    onTimer = (unit * weighting) / 50UL; // DIT duration with weighting
+    offTimer = 2 * unit - onTimer;       // element space duration with weighting
+    // now comes the magic for DAH: multiply by ditDahFactor, but keep current for DIT
+    onTimer = (onTimer * elementFactor) / 100UL;
+    setKey(ON);
+    setTone(toneFreq);
+    break;
+
+  // word space: add 4T pause after 3T character space
+  case WORDSPACE:
+    extraSpaceFactor = 4;
+  // half space: add 3T
+  case HALFSPACE:
+  // charspace: add 2T pause after the last element
+  case CHARSPACE:
+    onTimer = 0;
+    offTimer = unit * extraSpaceFactor + (element == HALFSPACE ? 1 : 0);
+    setKey(OFF);
+    setTone(0);
+    break;
+  }
+  lastMillis = currentTime; // initialize reference currentTime for element timers
+}
+
+/**
+ * @param input paddle input: bit 0 = DIT (1), bit 1 = DAH (2), value 3 = squeeze
+ */
+void KeyingInterface::sendPaddleElement(byte input)
+{
+  ElementType nextElement;
+  // if playing text buffer and paddle was touched, break and add a short pause; NO KEYING!
+  if (status.source == SRC_BUFFER && input != PADDLE_FREE)
+  {
+    status.source = SRC_PADDLE; // switch to paddle status.mode
+    sendElement(CHARSPACE);
+    return;
+  }
+  // for ultimatic code, get unequivocal value of either dot or dash
+  // i.e. special handling of squeeze to detect which paddle was added
+  if (status.mode == ULTIMATIC)
+  {
+    input = (lastUltimaticPaddle ^ input) & input;
+    // at this point {input} is one of DOT, DAH, PADDLE_FREE
+    lastUltimaticPaddle = input;
+  }
+  // in case of IAMBIC B, substitute no paddle contact by paddle memory
+  else if (status.mode == IAMBIC_B && input == PADDLE_FREE) // use memory in case of Iambic B status.mode
+  {
+    input = paddleMemory;
+    paddleMemory = PADDLE_FREE;
+  }
+  // at this point we have final "paddle value"
+  // next element is determined accordingly
+  switch (input)
+  {
+  case 3: // squeeze; after previous transformation, ultimatic will never have 3
+    nextElement = (internal.last == DIT) ? DAH : DIT;
+    break;
+  case 0:
+    nextElement = NO_ELEMENT;
+    break; // NO_ELEMENT is already in NextElement, which would be the "else" branch
+  default: // the rest is either DIT or DAH
+    nextElement = (ElementType)input;
+  }
+  sendElement(nextElement);
 }
 
 /**
@@ -25,13 +166,44 @@ void KeyingInterface::init()
 void KeyingInterface::setKey(OnOffEnum onOff)
 {
   if( flags.key == ENABLED ) {
-    digitalWrite(_keyline1, onOff);
+    digitalWrite(pin_keyline1, onOff);
     status.key = onOff;
   } 
   else {
-    digitalWrite(_keyline1, LOW);
+    digitalWrite(pin_keyline1, LOW);
     status.key = OFF ;
   }
+}
+
+/**
+ * set Key line immediately with timeout. Used for tuning transciever etc.
+ * @param level - high or low
+ */
+void KeyingInterface::setKey(OnOffEnum onOff, word timeout)
+{
+  if (flags.key == ENABLED)
+  {
+    digitalWrite(pin_keyline1, onOff);
+    status.key = onOff;
+    status.force = ON ;
+    hardKeyTimeout = currentTime + timeout ;
+  }
+  else
+  {
+    digitalWrite(pin_keyline1, LOW);
+    status.key = OFF;
+    status.force = OFF ;
+  }
+}
+
+/**
+ * Set new status.mode
+ */
+void KeyingInterface::setMode(KeyerMode newMode)
+{
+  status.mode = newMode;
+  lastUltimaticPaddle = 0; // to prevent race conditions when switching from Iambic to Ultimatic
+  paddleMemory = 0;
 }
 
 /**
@@ -40,15 +212,18 @@ void KeyingInterface::setKey(OnOffEnum onOff)
 void KeyingInterface::setPtt(OnOffEnum onOff)
 {
   if( flags.ptt == ENABLED ) {
-    digitalWrite(_pttline1, onOff);
+    digitalWrite(pin_pttline1, onOff);
     status.ptt = onOff ;
   }
   else {
-    digitalWrite(_pttline1, LOW);
+    digitalWrite(pin_pttline1, LOW);
     status.ptt = OFF ;
   }
 }
 
+void KeyingInterface::setPttTiming( byte lead, byte tail ) {
+  pttLead = lead; pttTail = tail ; 
+}
 /**
  * @param hz when hz = 0 stops sidetone, otherwise starts sidetone with frequency hz Hz
 */
@@ -56,8 +231,8 @@ void KeyingInterface::setTone(word hz)
 {
   hz = trimToneFreq(hz) ;
   if( hz > 0)
-    tone(_sidetone, hz); 
-  else noTone(_sidetone);
+    tone(pin_sidetone, hz); 
+  else noTone(pin_sidetone);
 }
 
 /**
@@ -68,15 +243,6 @@ void KeyingInterface::setSource(KeyingSource s)
   status.source = s ;
 }
 
-/**
- * @param hz required sidetone frequency
- * @returns sidetone frequency trimmed to remain between limits
- */
-word KeyingInterface::trimToneFreq(word hz)
-{
-  if( hz == 0 ) return 0 ;
-  return ( hz < minToneFreq ? minToneFreq : ( hz > maxToneFreq ? maxToneFreq : hz ));
-}
 
 /**
  *  @param  hz sidetone frequency to set for high-level sending
@@ -92,24 +258,6 @@ void KeyingInterface::setTimingParameters( byte wpm, word _dahRatio, word _weigh
   weighting = (_weighting == 0) ? weighting : _weighting;
 }
 
-void KeyingInterface::enableKey(EnableEnum enable)
-{
-  flags.key  = enable  ; 
-  if( flags.key == DISABLED ) setKey(OFF);
-}
-
-void KeyingInterface::enablePtt(EnableEnum enable)
-{
-  flags.ptt  = enable  ; 
-  if( flags.ptt == DISABLED ) setPtt(OFF);
-}
-
-void KeyingInterface::enableTone(EnableEnum enable)
-{
-  flags.tone = enable ; 
-  if( flags.tone == DISABLED ) setTone(OFF);
-}
-
 /**
  * This method checks time, services output control timers and updates line levels and sidetone as necessary.
  * @return current service status: READY (no timing in progress), BUSY (timing in progress), DIT (sending DIT), DAH (sending dah), SPACE (sending char space or wordspace)
@@ -120,6 +268,12 @@ KeyingStatus KeyingInterface::service( byte ps ) {
   if( status.source == SRC_PADDLE && status.busy == READY ) {
     sendPaddleElement( ps );
     return status ;
+  }
+  // stop forced key down on timeout or paddle touch or buffer character
+  if( status.force ) {
+    if( ps > 0 || hardKeyTimeout <= currentTime || status.source != SRC_PADDLE ) {
+      setKey( OFF, 0 );
+    }
   }
   // when playing buffer and paddles are touched, act immediately
   if( status.source == SRC_BUFFER && ps > 0 ) {
@@ -174,14 +328,14 @@ KeyingStatus KeyingInterface::service( byte ps ) {
     if( onTimer == 0 ) {
       setKey( OFF ); // switch off key line
       setTone( 0 );  // switch off sidetone
-      lastBPaddle = PADDLE_FREE ; // clear paddle memory for Iambic B
+      paddleMemory = PADDLE_FREE ; // clear paddle memory for Iambic B
     }
     return status ;
   }
 
   // timing section for key=OFF 
   if( offTimer > 0 ) {
-    lastBPaddle = lastBPaddle | ps ;
+    paddleMemory = paddleMemory | ps ;
     if( offTimer < interval ) offTimer = 0 ;
     else offTimer = offTimer - interval ;
     if( offTimer == 0 ) { 
@@ -194,111 +348,12 @@ KeyingStatus KeyingInterface::service( byte ps ) {
 }
 
 /**
- * @param input paddle input: bit 0 = DIT (1), bit 1 = DAH (2), value 3 = squeeze
+ * @param hz required sidetone frequency
+ * @returns sidetone frequency trimmed to remain between limits
  */
-void KeyingInterface::sendPaddleElement(byte input)
+word KeyingInterface::trimToneFreq(word hz)
 {
-  ElementType nextElement;
-  // if playing text buffer and paddle was touched, break and add a short pause; NO KEYING!
-  if( status.source == SRC_BUFFER && input != PADDLE_FREE ) {
-    status.source = SRC_PADDLE ; //switch to paddle status.mode
-    sendElement( CHARSPACE );
-    return ;
-  }
-  // for ultimatic code, get unequivocal value of either dot or dash
-  // i.e. special handling of squeeze to detect which paddle was added 
-  if (status.mode == ULTIMATIC) 
-  {
-      input = (lastUltimaticPaddle ^ input) & input;
-      // at this point {input} is one of DOT, DAH, PADDLE_FREE 
-      lastUltimaticPaddle = input;
-  }
-  // in case of IAMBIC B, substitute no paddle contact by paddle memory
-  else if (status.mode == IAMBIC_B && input == PADDLE_FREE) // use memory in case of Iambic B status.mode
-  {
-      input = lastBPaddle;
-      lastBPaddle = PADDLE_FREE;
-  }
-  // at this point we have final "paddle value"
-  // next element is determined accordingly 
-  switch (input) 
-  {
-  case 3: // squeeze; after previous transformation, ultimatic will never have 3
-      nextElement = (internal.last == DIT) ? DAH : DIT;
-      break;
-  case 0:
-      nextElement = NO_ELEMENT;
-      break; // NO_ELEMENT is already in NextElement, which would be the "else" branch
-  default:   // the rest is either DIT or DAH
-      nextElement = (ElementType)input;
-  }
-  sendElement(nextElement);
-}
-
-/***
- * Set element timers and status according to element.
- * @param element new current element to set up
- */
-void KeyingInterface::sendElement( ElementType element, bool addCharSpace ) {
-  word elementFactor = 100 ;   // 100 for DIT, ditDahFactor for DAH 
-  word extraSpaceFactor = 2 ; // 2 for CHARSPACE, 4 for WORDSPACE
-  internal.current = element ; // set new current element
-  status.busy = BUSY ;      // set new status 
-  lastBPaddle = PADDLE_FREE ;
-  switch( element ) {
-    case NO_ELEMENT:
-      status.busy = READY ;
-      onTimer = 0UL ;
-      offTimer = 0UL ;
-      break ;
-    case DAH:
-      elementFactor = ditDahFactor ;
-    case DIT:
-      onTimer = ( unit * weighting ) / 50UL ; // DIT duration with weighting
-      offTimer = 2 * unit - onTimer ;  // element space duration with weighting
-      if( addCharSpace ) {
-        offTimer += 2 * unit ;
-      }
-      // now comes the magic for DAH: multiply by ditDahFactor, but keep current for DIT
-      onTimer = (onTimer * elementFactor) / 100UL ;
-      setKey( ON );
-      setTone( toneFreq );
-      break;
-
-    // word space: add 4T pause after 3T character space
-    case WORDSPACE:
-      extraSpaceFactor = 4 ;
-    // half space: add 3T
-    case HALFSPACE:
-    // charspace: add 2T pause after the last element
-    case CHARSPACE:
-      onTimer = 0 ;
-      offTimer = unit * extraSpaceFactor + (element == HALFSPACE ? 1 : 0 );
-      setKey(OFF);
-      setTone(0);
-      break; 
-  }
-  lastMillis = currentTime ;   // initialize reference currentTime for element timers
-}
-
-bool KeyingInterface::sendCode( byte code ) {
-  if( status.buffer == DISABLED ) return false ; // do not accept character if buffer is full
-  if( code == 0 ) return true ; // accept code 0 but ignore it
-  if( currentMorse == 0 ) currentMorse = code ;
-  else {
-    nextMorse = code ;
-    status.buffer = DISABLED ;
-  }
-  status.source = SRC_BUFFER ;
-  return true ;
-}
-
-/**
- * Set new status.mode 
- */
-void KeyingInterface::setMode(KeyerMode newMode)
-{
-  status.mode = newMode;
-  lastUltimaticPaddle = 0 ; // to prevent race conditions when switching from Iambic to Ultimatic
-  lastBPaddle = 0 ;
+  if (hz == 0)
+      return 0;
+  return (hz < minToneFreq ? minToneFreq : (hz > maxToneFreq ? maxToneFreq : hz));
 }
