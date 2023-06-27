@@ -42,10 +42,10 @@ struct InternalStatus {
 class KeyingInterface {
 private:
   // keying interface object is supposed to be used as singleton, hence we use static constants
-  static const byte _keyline1 = CONFIG_KEYING_KEYLINE1; // key line, active HIGH
-  static const byte _pttline1 = CONFIG_KEYING_PTTLINE1; // PTT line, active HIGH
-  static const byte _sidetone = CONFIG_KEYING_SIDETONE; // sidetone out AC
-  static const byte _cpo_key = CONFIG_KEYING_CPO;       // sidetone keying, active high
+  static const byte pin_keyline1 = CONFIG_KEYING_KEYLINE1; // key line, active HIGH
+  static const byte pin_pttline1 = CONFIG_KEYING_PTTLINE1; // PTT line, active HIGH
+  static const byte pin_sidetone = CONFIG_KEYING_SIDETONE; // sidetone out AC
+  static const byte pin_cpo_key  = CONFIG_KEYING_CPO;      // sidetone keying, active high
 
   static const word minToneFreq = CONFIG_SIDETONE_MIN_FREQ; // minimum sidetone frequency
   static const word maxToneFreq = CONFIG_SIDETONE_MAX_FREQ; // maximum sidetone frequency
@@ -54,28 +54,29 @@ private:
   KeyingFlags flags = { tone: ENABLED, ptt: ENABLED, key: ENABLED };
   KeyingStatus status = { busy : READY, force : OFF, ptt : OFF, key : OFF,  source : SRC_PADDLE, mode : IAMBIC_A, buffer : ENABLED };
   InternalStatus internal = { current : NO_ELEMENT, last: NO_ELEMENT };
-  // KeyerMode mode = IAMBIC_A ;
-  // KeyingSource currentSource = SRC_PADDLE ;
   byte currentMorse = 0 ;
   byte nextMorse = 0 ;
 
   // binary morse code buffer memory
 
   // keying parameter settings 
-  word unit = 50;          // default timing unit is 50 msec = 24 WPM
-  word weighting = 50 ;    // DIT duration in percent, element space is then 100 - weighting
-  word ditDahFactor = 300 ;     // DAH duration in percent of DIT element time including weighting
-  word toneFreq = 600 ;         // default sidetone frequency
+  word unit = 50;           // default timing unit is 50 msec = 24 WPM
+  word weighting = 50 ;     // DIT duration in percent, element space is then 100 - weighting
+  word ditDahFactor = 300 ; // DAH duration in percent of DIT element time including weighting
+  word toneFreq = 600 ;     // default sidetone frequency
+  byte farnsWorthWpm = 10 ; // Farnsworth speed 
+  byte pttLead = 0, pttTail = 0; 
   byte lastUltimaticPaddle = PADDLE_FREE ;  // remember last ultimatic decision 
-  byte lastBPaddle = PADDLE_FREE ; // paddle memory for Iambic B
+  byte paddleMemory = PADDLE_FREE ; // paddle memory for Iambic B
  
   // timing variables
   unsigned long onTimer; // countdown timer for mark time in high-level sending
   unsigned long offTimer;    // countdown timer for space time in high-level sending
   unsigned long lastMillis ; // millisecond CPU time during the last service tick
+  unsigned long hardKeyTimeout = 0 ;
 
   // private methods
-  word trimToneFreq( word hz ); // trim tone frequency to stay between limits or keep zero
+  word trimToneFreq(word hz);   // trim tone frequency to stay between limits or keep zero
   void setKey(OnOffEnum onOff); // low-level key control
   void setPtt(OnOffEnum onOff); // low-level PTT control
 
@@ -84,16 +85,18 @@ public:
   void enableKey(EnableEnum enable); // enable or disable KEY output
   void enablePtt(EnableEnum enable); // enable or disable PTT output
   void enableTone(EnableEnum enable); // enable or disable tone
+  void setKey(OnOffEnum onOff, word timeout); // low-level key control
   void setMode(KeyerMode newMode);
   void setTone(word hz);   // low-level sidetone control
   void setSource( KeyingSource );
   void setTimingParameters(byte wpm, word aDahRatio = 0, word aWeighting = 0); // set time constants for given WPM speed, DAH:DIT ratio and weighting
+  void setFarnsworthWpm( byte wpm );
+  void setPttTiming( byte lead, byte tail );
   void setToneFreq(word hz);                       // set tone frequency for high-level sending
-  void sendElement(ElementType element, bool addCharSpace = false); // set status, onTimer and offTimer accordingly
+  void sendElement(ElementType element); // set status, onTimer and offTimer accordingly
   void sendPaddleElement( byte ); // determine element from paddle input and mode, and start sending
   bool sendCode ( byte ); // send binary morse code; return true if accepted, false otherwise
   KeyingStatus service( byte ); // read current millis, update timers, ports and status accordingly and return new service status
-
 };
 
 extern KeyingInterface keyer;
