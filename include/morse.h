@@ -1,6 +1,6 @@
 // Morse codec
-#ifndef MORSE_H
-#define MORSE_H
+#ifndef _MORSE_H_
+#define _MORSE_H_
 
 #include <Arduino.h>
 #include "challenger.h"

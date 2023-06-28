@@ -1,13 +1,18 @@
-#include <Arduino.h>
+// #include <Arduino.h>
+#include "config_protocol.h"
 #include "morse.h"
 #include "keying.h"
 #include "paddle.h"
 #include "speed_control.h"
 #include "protocol.h"
 
-
-
 const word WINKEY_SIDETONE_FREQ = 4000;
+const byte WKS_TEMPLATE = 0b11000000; // Winkey status marker
+const byte WKS_WAIT     = 0b00010000; // Winkey "wait" <=> keyer.busy
+const byte WKS_KEYDOWN  = 0b00001000; // Winkey "keydown" <=> keyer.force & keyer.key; only WK1 mode
+const byte WKS_BUSY     = 0b00000100; // Winkey "sending morse" <=> keyer.source == buffer
+const byte WKS_BREAKIN  = 0b00000010; // Winkey "paddle break-in" <=>
+const byte WKS_XOFF     = 0b00000001; // Winkey "XOFF" when buffer more than 2/3 full (170+ characters) 
 
 /*
  * Jumping to 0x0000 will restart the whole program
@@ -118,12 +123,23 @@ void WinkeyProtocol::executeCommand()
   // all unimplemented commands w/o response
   case 0x0F: // load defaults...
     // TODO: load defaults
+    setModeParameters(); // implicit param[0]
+    keyer.setTimingParameters(param[1], (param[12] * 300U) / 50U, param[3]) ;
+    keyer.setPttTiming(param[4], param[5]);
+    keyer.setFirstExtension( param[8] );
+    keyer.setQskCompensation( param[9]);
+    speedControl->setValue(param[1]);
+    speedControl->setMinMax(param[6], param[6] + param[7]);
+    keyer.setFarnsworthWpm(param[10]);
     break;
   case 0x10: // 1st extension
-    // TODO: implement in KeyingInterface
+    keyer.setFirstExtension( param[0] );
+    break;
+  case 0x11: // QSK compensation 
+    keyer.setQskCompensation( param[0] );
     break;
   case 0x15: // Winkeyer2 status
-    // TODO: implement WK2 status
+    statusChanged = true ; // status will be reported after update
     break;
   case 0x17: // dah:dit ratio
     keyer.setTimingParameters(0, (param[0] * 300U) / 50U, 0);
@@ -152,7 +168,7 @@ byte WinkeyProtocol::getNextMorseCode() {
 void WinkeyProtocol::ignore() {}
 
 void WinkeyProtocol::init() {
-  Serial.begin( 1200 ); // 1k2 is the only winkeyer protocol baud rate
+  Serial.begin( SERIAL_SPEED ); // 1k2 is the only winkeyer protocol baud rate
   fifo.reset();
   phase = FETCH_ANY ;
 }
@@ -174,6 +190,12 @@ void WinkeyProtocol::sendResponse(word x)
 
 void WinkeyProtocol::sendResponse(char* str, word length)
 { Serial.write( str, length ); }
+void WinkeyProtocol::sendStatus() {
+  if( statusChanged ) { 
+    Serial.write( wkStatus );
+    statusChanged = false ; 
+  }
+}
 /**
  * Reads serial port if character is available, except if previous character is still waiting to be processed.
  * Command characters are taken immediately into command buffer. All other characters are sent to circular text buffer
@@ -181,41 +203,38 @@ void WinkeyProtocol::sendResponse(char* str, word length)
  */
 void WinkeyProtocol::service()
 {
-  char input;
-  bool canReadMore = (phase != EXECUTE) && (fifo.canTake() || phase != FETCH_ANY); // we can read if command fetch is in progress or text buffer can consume char
-  // repeat as long as we can
-  while (canReadMore && Serial.available() > 0)
+  int input;
+  input = Serial.peek() ;
+  while (input >= 0 
+         && (phase == EXPECT_ADMIN || phase == EXPECT_PARAMS 
+             || (phase == FETCH_ANY && (input <= 0x1F || fifo.canTake()) ))
+        )
   {
     // read one character
     input = Serial.read();
     switch (phase)
     {
     case FETCH_ANY:
-      // if the byte is below 0x20, start fetching command
-      if (input <= 0x1F)
-      {
-        command = input; // copy byte into word
-        if (input == 0)
-          phase = EXPECT_ADMIN;
-        else
-        {
-          command = input;
-          bytesExpected = parametersExpected[command];
-          if (bytesExpected == 255)
-            bytesExpected++; // only for donwload EEPROM command
-          bytesFetched = 0;
-          if (bytesExpected > 0)
-            phase = EXPECT_PARAMS;
-          else
-          {
-            phase = EXECUTE;
-            param[0] = 0;
-          }
+      if( input == 0 ) {
+        phase = EXPECT_ADMIN ;
+      }
+      else if( input < 0x20 ) {
+        command = input;
+        bytesExpected = parametersExpected[command];
+        if (bytesExpected == 255) bytesExpected++; // only for donwload EEPROM command
+        bytesFetched = 0;
+        if (bytesExpected > 0) phase = EXPECT_PARAMS;
+        else {
+          phase = EXECUTE;
+          param[0] = 0;
         }
       }
-      // otherwise push it to text buffer
-      else
+      else {
         fifo.push(input);
+        Serial.write( (char) input ); // do serial echo 
+        sprintf(message, " FIFO> %d chars, %d free, hasMore = %d", fifo.getLength(), fifo.getFree(), fifo.hasMore());
+        Serial.println( message );
+      }
       break;
     case EXPECT_ADMIN:
       command = 0x20 + input; // complete command code
@@ -225,12 +244,10 @@ void WinkeyProtocol::service()
       }
       else
       {
-        bytesFetched = 0;
         bytesExpected = parametersExpected[command];
-        if (bytesExpected > 0)
-          phase = EXPECT_PARAMS;
-        else
-        {
+        bytesFetched = 0;
+        if (bytesExpected > 0) phase = EXPECT_PARAMS;
+        else {
           phase = EXECUTE;
           param[0] = 0;
         }
@@ -239,22 +256,19 @@ void WinkeyProtocol::service()
     case EXPECT_PARAMS:
       if (bytesExpected > 0)
       {
-        if (bytesFetched < 16)
-          param[bytesFetched] = input; // ignore bytes after 16th byte, this is part of ignoring EEPROM download
+        if (bytesFetched < 16)  param[bytesFetched] = input; // ignore bytes after 16th byte, this is part of ignoring EEPROM download
         bytesFetched++;
-        if (command == 0x16 && bytesFetched == 1 && input == 3)
-          bytesExpected++; // command Buffer Pointer Command has extra byte if parameter == 3
+        if (command == 0x16 && bytesFetched == 1 && input == 3) bytesExpected++; // command Buffer Pointer Command has extra byte if parameter == 3
         bytesExpected--;
       }
-      if (bytesExpected == 0)
-        phase = EXECUTE;
+      if (bytesExpected == 0) phase = EXECUTE;
     default:
       break; 
     }
-    canReadMore = (phase != EXECUTE) && (fifo.canTake() || phase != FETCH_ANY);
+    input = Serial.peek();
   }
-  if (phase == EXECUTE)
-    executeCommand();
+  if( fifo.getLength() == 0 ) bufferBreak = false ;
+  if (phase == EXECUTE) executeCommand();
 }
 
 void WinkeyProtocol::setModeParameters()  { 
@@ -276,4 +290,21 @@ void WinkeyProtocol::setModeParameters()  {
   // keyer.setAutospace( wkMode & 2 )
   // TODO: contest spacing (implement in KeyingInterface)
   // keyer.setContestSpacing( wkMode & 1 )
+}
+
+void WinkeyProtocol::setStatus(KeyingStatus keyState, byte paddleState) {
+  byte status = WKS_TEMPLATE ;
+  if( keyState.busy == BUSY ) status |= WKS_WAIT ;
+  if( keyState.source == SRC_BUFFER ) status |= WKS_BUSY ;
+  if( bufferBreak ) status |= WKS_BREAKIN ;
+  if( fifo.getLength() > 170 ) status |= WKS_XOFF ;
+  statusChanged = statusChanged || (status != wkStatus) ;
+  if(statusChanged) {
+    wkStatus = status ;
+  }
+
+}
+
+void WinkeyProtocol::stopBuffer() {
+  fifo.reset();
 }

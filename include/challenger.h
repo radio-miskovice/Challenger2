@@ -1,5 +1,5 @@
-#ifndef _CHALLENGER_TYPES_H_ 
-#define _CHALLENGER_TYPES_H_
+#ifndef _CHALLENGER_H_ 
+#define _CHALLENGER_H_
 
 /**
  * Global types and variables for Challenger 

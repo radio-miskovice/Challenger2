@@ -1,5 +1,5 @@
-#ifndef SPEED_CONTROLLER_H 
-#define SPEED_CONTROLLER_H
+#ifndef _SPEED_CONTROLLER_H_
+#define _SPEED_CONTROLLER_H_
 
 #include <Arduino.h>
 
