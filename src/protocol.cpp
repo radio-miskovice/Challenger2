@@ -1,4 +1,5 @@
-#include <Arduino.h>
+// #include <Arduino.h>
+#include "config_protocol.h"
 #include "morse.h"
 #include "keying.h"
 #include "paddle.h"
@@ -168,7 +169,7 @@ byte WinkeyProtocol::getNextMorseCode() {
 void WinkeyProtocol::ignore() {}
 
 void WinkeyProtocol::init() {
-  Serial.begin( 1200 ); // 1k2 is the only winkeyer protocol baud rate
+  Serial.begin( SERIAL_SPEED ); // 1k2 is the only winkeyer protocol baud rate
   fifo.reset();
   phase = FETCH_ANY ;
 }
@@ -203,7 +204,11 @@ void WinkeyProtocol::service()
 {
   int input;
   // repeat as long as we can
-  input = Serial.peek() ;
+  input = Serial.read() ;
+  if( input >= 0x20 && input <= '}') {
+    Serial.write( input );
+  }
+  return ;
   while (input >= 0 
          && ((phase == FETCH_ANY && input < 0x20) || (phase == FETCH_ANY && fifo.canTake() )  
               || phase == EXPECT_ADMIN || phase == EXPECT_PARAMS))
@@ -312,7 +317,12 @@ void WinkeyProtocol::setStatus(KeyingStatus keyState, byte paddleState) {
   if( bufferBreak ) status |= WKS_BREAKIN ;
   if( fifo.getLength() > 170 ) status |= WKS_XOFF ;
   statusChanged = statusChanged || (status != wkStatus) ;
-  wkStatus = status ;
+  if(statusChanged) {
+    Serial.write(status & 0x7F);
+    Serial.flush();
+    wkStatus = status ;
+  }
+
 }
 
 void WinkeyProtocol::stopBuffer() {

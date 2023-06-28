@@ -5,7 +5,7 @@
 
 // debugging
 unsigned long blikTime = 0 ;
-const byte LED = A0 ;
+const byte LED = D4 ;
 void blik(bool);
 
 // data type
@@ -40,8 +40,6 @@ void setup() {
   keyer.service(0);
   keyer.sendCode(0b10101000);
   keyer.sendCode(0b00111100);
-  Serial.begin(1200);
-
 }
 
 char message[100];
@@ -73,12 +71,12 @@ void loop() {
   }
   else if( keyerState.buffer == ENABLED ) { // can send from buffer?
     byte x ;
-    // x = protocol.getNextMorseCode();
+    x = protocol.getNextMorseCode();
     // Serial.println( x, 2 ); 
     // keyerState = keyer.sendCode( x ); // send code or do nothing if got zero
   }
-  // protocol.setStatus( keyerState, paddleState );
-  // protocol.sendStatus();
+  protocol.setStatus( keyerState, paddleState );
+  protocol.sendStatus();
 }
 
 // for debugging; remove in production code
