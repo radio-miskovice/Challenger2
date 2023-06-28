@@ -4,6 +4,10 @@
 // Keying interface singleton
 KeyingInterface keyer = KeyingInterface() ;
 
+bool KeyingInterface::canAccept() {
+  return (status.breakIn == OFF && nextMorse == 0);
+}
+
 void KeyingInterface::enableKey(EnableEnum enable)
 {
   flags.key = enable;
@@ -56,6 +60,7 @@ void KeyingInterface::init()
 */
 KeyingStatus KeyingInterface::sendCode(byte code)
 {
+  if( code == 0 ) return status ;
   status.source = SRC_BUFFER;
   if (currentMorse == 0)
     currentMorse = code;
@@ -294,6 +299,7 @@ KeyingStatus KeyingInterface::service( byte paddleState ) {
   }
   // otherwise check scheduled actions - first do current element
   if( interval == 0UL ) return status ; // timing in progress, but elapsed zero time, hence no change
+  //  if( nextMorse == 0 && !status.breakIn) status.buffer = ENABLED ;
   lastMillis = currentTime ; // remember new current time
   // (2) service KEY DOWN state
   if( onTimer > 0UL ) {

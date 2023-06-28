@@ -39,6 +39,8 @@ private:
   CharacterFIFO fifo;
   void ignore();
   void setModeParameters();
+  // debugging message
+  char message[80];
 
 public:
   // bool expectCmd = false;

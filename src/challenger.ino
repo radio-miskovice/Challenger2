@@ -65,15 +65,9 @@ void loop() {
   protocol.service(); // check incoming data and execute command if necessary
   byte paddleState = paddle.check();
   KeyingStatus keyerState = keyer.service( paddleState ) ; // check and update timing and status
-  current.s = keyerState ;
-  if( keyerState.breakIn == ON ) {
-    protocol.stopBuffer() ;
-  }
-  else if( keyerState.buffer == ENABLED ) { // can send from buffer?
-    byte x ;
-    x = protocol.getNextMorseCode();
-    // Serial.println( x, 2 ); 
-    // keyerState = keyer.sendCode( x ); // send code or do nothing if got zero
+  if( keyer.canAccept() ) { // can send from buffer?
+     byte x = protocol.getNextMorseCode();
+     keyerState = keyer.sendCode( x ); // send code or do nothing if got zero
   }
   protocol.setStatus( keyerState, paddleState );
   protocol.sendStatus();
@@ -82,7 +76,7 @@ void loop() {
 // for debugging; remove in production code
 void blik(bool start) {
   if( start ) {
-    blikTime = currentTime + 25;
+    blikTime = currentTime + 5;
     digitalWrite(LED, HIGH);
   }
   else if( blikTime < currentTime ) {

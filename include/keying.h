@@ -28,14 +28,14 @@ enum KeyingSource
 };
 
 struct KeyingStatus {
+  BusyEnum   busy : 1;        
+  EnableEnum buffer : 1 ;
+  OnOffEnum  breakIn : 1 ;
+  OnOffEnum  key : 1;  
   KeyingSource source : 2 ; 
   KeyerMode  mode : 2 ;
-  EnableEnum buffer : 1 ;
-  BusyEnum   busy : 1;        
-  OnOffEnum  force : 1; 
   OnOffEnum  ptt : 1;   
-  OnOffEnum  key : 1;  
-  OnOffEnum  breakIn : 1 ;
+  OnOffEnum  force : 1; 
 };
 
 struct InternalStatus {
@@ -56,7 +56,17 @@ private:
 
   // operational parameters, internal parameters and status
   KeyingFlags flags = { tone: ENABLED, ptt: ENABLED, key: ENABLED };
-  KeyingStatus status = { source : SRC_PADDLE, mode : IAMBIC_A, buffer : ENABLED, busy : READY, force : OFF, ptt : OFF, key : OFF, breakIn : OFF };
+  KeyingStatus status = { 
+     busy : READY, 
+     buffer : ENABLED, 
+     breakIn : OFF ,
+     key : OFF, 
+     source : SRC_PADDLE, 
+     mode : IAMBIC_A,
+     ptt : OFF,
+     force : OFF 
+     };
+
   InternalStatus internal = { current : NO_ELEMENT, last: NO_ELEMENT };
   byte currentMorse = 0 ;
   byte nextMorse = 0 ;
@@ -88,6 +98,7 @@ private:
 
 public:
   void init();  // port setup
+  bool canAccept();
   void enableKey(EnableEnum enable);  // enable or disable KEY output
   void enablePtt(EnableEnum enable);  // enable or disable PTT output
   void enableTone(EnableEnum enable); // enable or disable tone
