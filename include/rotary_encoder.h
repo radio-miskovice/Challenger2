@@ -1,6 +1,6 @@
 /* ROTARY ENCODER VARIABLES */
-#if !defined(ROTARY_ENCODER_H)
-#define ROTARY_ENCODER_H 
+#if !defined(_ROTARY_ENCODER_H_)
+#define _ROTARY_ENCODER_H_
 
 #include "config_speedcontrol.h"
 #include "speed_controller.h"

@@ -1,6 +1,8 @@
-#if !defined( PROTOCOL_H )
-#define PROTOCOL_H
+#if !defined( _PROTOCOL_H_ )
+#define _PROTOCOL_H_
 
+#include "challenger.h"
+#include "keying.h"
 #include "buffer.h"
 
 enum FetchProgressPhase : byte
@@ -28,10 +30,11 @@ private:
   byte command;          // command byte, prefix = MSB
   byte param[16];        // command parameter(s)
   byte _isHostOpen;
+  byte wkStatus ;
+  bool bufferBreak = false ;
+  bool statusChanged = true ;
   OnOffEnum serialEcho = OFF ;
   OnOffEnum paddleEcho = OFF ;
-  // bool _isStatusDirty = false;
-  // word wasResponded = 0;
   bool _sidetonePaddleOnly = false;
   CharacterFIFO fifo;
   void ignore();
@@ -46,7 +49,10 @@ public:
   void sendResponse(byte);
   void sendResponse(word);
   void sendResponse(char* str, word length);
+  void sendStatus();
   void service();
+  void setStatus( KeyingStatus keyState, byte paddleState );
+  void stopBuffer() ; 
 };
 
 extern WinkeyProtocol protocol ;

@@ -1,5 +1,5 @@
-#ifndef _CONFIG_KEYING_
-#define _CONFIG_KEYING_
+#ifndef _CONFIG_KEYING_H_
+#define _CONFIG_KEYING_H_
 
 /* This is interface hardware pin definition for keying interface in your hardware using Arduino: 
  * Key line - keying external rig, such as transceiver, CPO
@@ -9,7 +9,7 @@
  */
 
 #define CONFIG_KEYING_KEYLINE1 A2
-#define CONFIG_KEYING_PTTLINE1 7
+#define CONFIG_KEYING_PTTLINE1 A1
 #define CONFIG_KEYING_SIDETONE A5
 #define CONFIG_KEYING_CPO      0
 

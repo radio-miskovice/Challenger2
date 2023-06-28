@@ -54,12 +54,9 @@ void KeyingInterface::init()
  * @returns {bool} true on success, false otherwise (i.e. when buffer was already full)
  * 
 */
-bool KeyingInterface::sendCode(byte code)
+KeyingStatus KeyingInterface::sendCode(byte code)
 {
-  if (status.buffer == DISABLED)
-    return false; // do not accept character if buffer is full
-  if (code == 0)
-    return true; // accept code 0 but ignore it
+  status.source = SRC_BUFFER;
   if (currentMorse == 0)
     currentMorse = code;
   else
@@ -67,8 +64,7 @@ bool KeyingInterface::sendCode(byte code)
     nextMorse = code;
     status.buffer = DISABLED;
   }
-  status.source = SRC_BUFFER;
-  return true;
+  return status ;
 }
 
 /***
@@ -81,6 +77,7 @@ void KeyingInterface::sendElement(ElementType element)
   word extraSpaceFactor = 2;  // 2 for CHARSPACE, 4 for WORDSPACE
   internal.current = element; // set new current element
   status.busy = BUSY;         // set new status
+  status.breakIn = OFF ;
   paddleMemory = PADDLE_FREE;
   switch (element)
   {
@@ -95,7 +92,7 @@ void KeyingInterface::sendElement(ElementType element)
     onTimer = (unit * weighting) / 50UL; // DIT duration with weighting
     offTimer = 2 * unit - onTimer;       // element space duration with weighting
     // now comes the magic for DAH: multiply by ditDahFactor, but keep current for DIT
-    onTimer = (onTimer * elementFactor) / 100UL;
+    onTimer = (onTimer * elementFactor) / 100UL + qskCompensation ;
     setKey(ON);
     setTone(toneFreq);
     break;
@@ -133,9 +130,9 @@ void KeyingInterface::sendPaddleElement(byte input)
   // i.e. special handling of squeeze to detect which paddle was added
   if (status.mode == ULTIMATIC)
   {
-    input = (lastUltimaticPaddle ^ input) & input;
+    input = (paddleMemUltimatic ^ input) & input;
     // at this point {input} is one of DOT, DAH, PADDLE_FREE
-    lastUltimaticPaddle = input;
+    paddleMemUltimatic = input;
   }
   // in case of IAMBIC B, substitute no paddle contact by paddle memory
   else if (status.mode == IAMBIC_B && input == PADDLE_FREE) // use memory in case of Iambic B status.mode
@@ -157,6 +154,29 @@ void KeyingInterface::sendPaddleElement(byte input)
     nextElement = (ElementType)input;
   }
   sendElement(nextElement);
+}
+
+void KeyingInterface::setBreakIn() {
+  status.breakIn = OFF;
+  status.source = SRC_PADDLE ;
+  status.buffer = ENABLED ;
+  internal.last = NO_ELEMENT;
+  internal.current = NO_ELEMENT;
+  paddleMemUltimatic = PADDLE_FREE;
+  paddleMemory = PADDLE_FREE;
+  currentMorse = 0 ;
+  nextMorse = 0 ;
+  setKey(OFF, 0);
+}
+
+void KeyingInterface::setFirstExtension(byte ms)
+{
+  if( ms <= 250 ) firstExtension = ms;
+}
+
+void KeyingInterface::setQskCompensation(byte ms)
+{
+  if (ms <= 250 ) qskCompensation = ms;
 }
 
 /**
@@ -191,6 +211,7 @@ void KeyingInterface::setKey(OnOffEnum onOff, word timeout)
   else
   {
     digitalWrite(pin_keyline1, LOW);
+    setTone(0);
     status.key = OFF;
     status.force = OFF ;
   }
@@ -202,7 +223,7 @@ void KeyingInterface::setKey(OnOffEnum onOff, word timeout)
 void KeyingInterface::setMode(KeyerMode newMode)
 {
   status.mode = newMode;
-  lastUltimaticPaddle = 0; // to prevent race conditions when switching from Iambic to Ultimatic
+  paddleMemUltimatic = 0; // to prevent race conditions when switching from Iambic to Ultimatic
   paddleMemory = 0;
 }
 
@@ -267,12 +288,13 @@ KeyingStatus KeyingInterface::service( byte ps ) {
   // if sending from paddle, check paddles if ready to send next
   if( status.source == SRC_PADDLE && status.busy == READY ) {
     sendPaddleElement( ps );
+    status.breakIn = OFF ;
     return status ;
   }
   // stop forced key down on timeout or paddle touch or buffer character
   if( status.force ) {
     if( ps > 0 || hardKeyTimeout <= currentTime || status.source != SRC_PADDLE ) {
-      setKey( OFF, 0 );
+      setBreakIn();
     }
   }
   // when playing buffer and paddles are touched, act immediately
@@ -280,19 +302,12 @@ KeyingStatus KeyingInterface::service( byte ps ) {
     // paddle is touched while playing buffer => STOP buffer
     // TODO: test and replace by more adequate timing
     sendElement( CHARSPACE ); // ensure key off, give time to settle
-    // clear morse code buffer
-    currentMorse = 0;
-    nextMorse = 0;
-    status.buffer = ENABLED ;
-    // switch to paddle mode
-    status.source = SRC_PADDLE ;
-    internal.current = NO_ELEMENT ;
-    internal.last = NO_ELEMENT ;
+    setBreakIn(); // key off, sidetone off, buffer reset, paddle memory reset, set breakin condition
   }
   // after immediate actions check scheduled actions
   if( interval == 0UL ) return status ; // timing in progress, but elapsed zero time, hence no change
   lastMillis = currentTime ; // remember new current time
-
+  // service buffered morse code 
   if (status.source == SRC_BUFFER && status.busy == READY)
   {
     if (currentMorse == 0) { // current code is finished

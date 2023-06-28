@@ -1,5 +1,5 @@
-#ifndef SPEED_CONTROL_H
-#define SPEED_CONTROL_H
+#ifndef _SPEED_CONTROL_H_
+#define _SPEED_CONTROL_H_
 
 #include "speed_controller.h"
 #include "rotary_encoder.h"

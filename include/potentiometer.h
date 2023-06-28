@@ -1,6 +1,6 @@
 
-#ifndef POTENTIOMETER_H
-#define POTENTIOMETER_H
+#ifndef _POTENTIOMETER_H_
+#define _POTENTIOMETER_H_
 
 #include "config_speedcontrol.h"
 #include <Arduino.h>
