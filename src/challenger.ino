@@ -18,6 +18,8 @@ int speedCommand = 20 ;
 unsigned long currentTime ;
 
 void setup() {
+  pinMode( LED_BUILTIN, OUTPUT );
+  digitalWrite( LED_BUILTIN, HIGH );
   protocol.init();
   keyer.init();
   keyer.setMode(IAMBIC_B);
@@ -40,17 +42,15 @@ void setup() {
   keyer.service(0);
   keyer.sendCode(0b10101000);
   keyer.sendCode(0b00111100);
+  speedControl->setMinMax(15,46);
+  speedControl->setValue(speedPaddles);
+  digitalWrite( LED_BUILTIN, LOW );
 }
 
 char message[100];
 // char qbf[] = "= QUICK BROWN FOX JUMPS OVER THE LAZY DOG.  / 1234567890 + ";
 int index = 0 ;
-KeyingStatus kkk ;
-
-union B {
-  KeyingStatus s;
-  word w ;
-} current, previous ;
+KeyerState kkk ;
 
 void loop() {
   currentTime = millis();
@@ -60,17 +60,20 @@ void loop() {
     speedPaddles = speed ;
     keyer.setTimingParameters( speedPaddles );
     blik(true);
+    protocol.sendResponse( speedControl->getSpeedWk2() ); // send WK status speed info
   }
   else blik(false);
   protocol.service(); // check incoming data and execute command if necessary
   byte paddleState = paddle.check();
-  KeyingStatus keyerState = keyer.service( paddleState ) ; // check and update timing and status
+  KeyerState keyerState = keyer.service( paddleState ) ; // check and update timing and status
+  if( keyerState.breakIn == ON ) {
+    protocol.stopBuffer(); // will also send WK status "breakin" and "ready"
+  }
   if( keyer.canAccept() ) { // can send from buffer?
-     byte x = protocol.getNextMorseCode();
+     byte x = protocol.getNextMorseCode(); // also send new status re XON, XOFF
      keyerState = keyer.sendCode( x ); // send code or do nothing if got zero
   }
-  protocol.setStatus( keyerState, paddleState );
-  protocol.sendStatus();
+  protocol.sendStatus(keyerState);
 }
 
 // for debugging; remove in production code

@@ -1,1 +1,1 @@
-const unsigned long SERIAL_SPEED = 19200 ;
+const unsigned long SERIAL_SPEED = 1200 ;

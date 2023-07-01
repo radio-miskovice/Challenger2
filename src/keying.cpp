@@ -26,7 +26,12 @@ void KeyingInterface::enableTone(EnableEnum enable)
   if (flags.tone == DISABLED)  setTone(OFF);
 }
 
-void KeyingInterface::setFarnsworthWpm( byte wpm ) {
+void KeyingInterface::setAutospace( EnableEnum newState ) {
+  flags.autospace = newState;
+}
+
+void KeyingInterface::setFarnsworthWpm(byte wpm)
+{
   farnsWorthWpm = wpm ;
 }
 
@@ -58,7 +63,7 @@ void KeyingInterface::init()
  * @returns {bool} true on success, false otherwise (i.e. when buffer was already full)
  * 
 */
-KeyingStatus KeyingInterface::sendCode(byte code)
+KeyerState KeyingInterface::sendCode(byte code)
 {
   if( code == 0 ) return status ;
   status.source = SRC_BUFFER;
@@ -67,7 +72,7 @@ KeyingStatus KeyingInterface::sendCode(byte code)
   else
   {
     nextMorse = code;
-    status.buffer = DISABLED;
+    status.accept = DISABLED;
   }
   return status ;
 }
@@ -83,6 +88,7 @@ void KeyingInterface::sendElement(ElementType element)
   internal.current = element; // set new current element
   status.busy = BUSY;         // set new status
   paddleMemory = PADDLE_FREE;
+  byte elementBit = 0 ; // corresponds to DIT in morse code
   switch (element)
   {
   case NO_ELEMENT:
@@ -94,6 +100,7 @@ void KeyingInterface::sendElement(ElementType element)
     break;
   case DAH:
     elementFactor = ditDahFactor;
+    elementBit = 1 ;
   case DIT:
     onTimer = (unit * weighting) / 50UL; // DIT duration with weighting
     offTimer = 2 * unit - onTimer;       // element space duration with weighting
@@ -101,6 +108,7 @@ void KeyingInterface::sendElement(ElementType element)
     onTimer = (onTimer * elementFactor) / 100UL + qskCompensation ;
     setKey(ON);
     setTone(toneFreq);
+    morseCollector = (morseCollector << 1) | elementBit ;
     break;
 
   // word space: add 4T pause after 3T character space
@@ -268,7 +276,7 @@ void KeyingInterface::setTimingParameters( byte wpm, word _dahRatio, word _weigh
  * This method checks time, services output control timers and updates line levels and sidetone as necessary.
  * @return current service status: READY (no timing in progress), BUSY (timing in progress), DIT (sending DIT), DAH (sending dah), SPACE (sending char space or wordspace)
 */
-KeyingStatus KeyingInterface::service( byte paddleState ) {
+KeyerState KeyingInterface::service( byte paddleState ) {
   // check current time 
   unsigned long interval = currentTime - lastMillis ; 
   // (1) check paddle break and hard keydown timeout. Breaks buffer send and forced keydown.
@@ -293,7 +301,7 @@ KeyingStatus KeyingInterface::service( byte paddleState ) {
       nextMorse = 0;
       // set break-in status, it has to be reported to protocol
       status.breakIn = ON ;
-      status.buffer = DISABLED ; // do not accept further codes until breakIn is cleared
+      status.accept = DISABLED ; // do not accept further codes until breakIn is cleared
     }
     return status ; // paddle break event is the last action in this tick if occured
   }
@@ -324,9 +332,12 @@ KeyingStatus KeyingInterface::service( byte paddleState ) {
       // clear break-in status if still active
       if( status.breakIn == ON ) {
         status.breakIn = OFF ;
-        status.buffer = ENABLED ;
+        status.accept = ENABLED ;
         status.source = SRC_PADDLE ;
       }
+      // if( flags.autospace == ENABLED ) {
+      //   sendElement( CHARSPACE );
+      // }
     }
     else { return status ; } // if pause is in progress, no more actions follow
   }
@@ -337,7 +348,7 @@ KeyingStatus KeyingInterface::service( byte paddleState ) {
       if (nextMorse != 0) { // fetch next
         currentMorse = nextMorse;
         nextMorse = 0; // clear FIFO
-        status.buffer = ENABLED;
+        status.accept = ENABLED;
       }
       // otherwise switch to paddle mode if no more codes in buffer
       else { 
@@ -362,10 +373,14 @@ KeyingStatus KeyingInterface::service( byte paddleState ) {
     }
     currentMorse <<= 1; // shift to next element
   }
-  if( status.source == SRC_BUFFER ) return status ; // if sending buffer, we don't check paddles
+  if( status.source == SRC_BUFFER ) {
+    digitalWrite( LED_BUILTIN, HIGH ); // signal buffer busy
+    return status; // if sending buffer, we don't check paddles
+  } 
   // (5) last action: check paddles and play element if paddles pressed
   // as a result of previous actions, at this point status must be READY
   // and source must be PADDLE
+  digitalWrite(LED_BUILTIN, LOW);
   sendPaddleElement(paddleState);
   return status ; // always return status to allow for proper interaction with other components
 }

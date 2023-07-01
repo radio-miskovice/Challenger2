@@ -11,6 +11,8 @@ struct KeyingFlags
   EnableEnum tone : 1;
   EnableEnum ptt : 1;
   EnableEnum key : 1;
+  EnableEnum autospace: 1 ;
+  EnableEnum contestSpacing: 1 ;
 } ;
 
 enum KeyerMode
@@ -27,21 +29,28 @@ enum KeyingSource
   SRC_COMMAND
 };
 
-struct KeyingStatus {
-  BusyEnum   busy : 1;        
-  EnableEnum buffer : 1 ;
-  OnOffEnum  breakIn : 1 ;
-  OnOffEnum  key : 1;  
-  KeyingSource source : 2 ; 
-  KeyerMode  mode : 2 ;
-  OnOffEnum  ptt : 1;   
-  OnOffEnum  force : 1; 
+// the following structure is designed to fit bitwise into WK2 status
+struct KeyerState {
+  OnOffEnum  key : 1;       // will be replaced by XOFF bit in WK2 status byte
+  OnOffEnum  breakIn : 1;   // WK1, WK2 BREAKIN bit
+  OnOffEnum  bufferSend: 1; // WK1, WK2 BUSY bit
+  EnableEnum accept : 1;    // will be masked off in WK2 status byte
+  BusyEnum   busy : 1;      // not sure if correct; WK1, WK2 WAIT bit
+  KeyingSource source : 2;  // will be masked off in WK2 status byte
+  OnOffEnum force : 1;      // will be masked off in WK2 status byte
+  OnOffEnum ptt : 1;        // will be masked off in WK2 status byte
+  KeyerMode mode : 2;       // will be masked off in WK2 status byte
 };
 
 struct InternalStatus {
   ElementType current: 3; 
   ElementType last: 3;
 };
+
+// union KeyerStateWord {
+//   KeyerState state ;
+//   word w ;
+// };
 
 class KeyingInterface {
 private:
@@ -55,17 +64,18 @@ private:
   static const word maxToneFreq = CONFIG_SIDETONE_MAX_FREQ; // maximum sidetone frequency
 
   // operational parameters, internal parameters and status
-  KeyingFlags flags = { tone: ENABLED, ptt: ENABLED, key: ENABLED };
-  KeyingStatus status = { 
-     busy : READY, 
-     buffer : ENABLED, 
-     breakIn : OFF ,
-     key : OFF, 
-     source : SRC_PADDLE, 
-     mode : IAMBIC_A,
-     ptt : OFF,
-     force : OFF 
-     };
+  KeyingFlags flags = { tone: ENABLED, ptt: ENABLED, key: ENABLED, autospace: DISABLED, contestSpacing: DISABLED };
+  KeyerState status = { 
+    key : OFF, 
+    breakIn : OFF ,
+    bufferSend: OFF,
+    accept : ENABLED, 
+    busy : READY, 
+    source : SRC_PADDLE, 
+    force : OFF, 
+    ptt : OFF,
+    mode : IAMBIC_A
+  };
 
   InternalStatus internal = { current : NO_ELEMENT, last: NO_ELEMENT };
   byte currentMorse = 0 ;
@@ -84,6 +94,8 @@ private:
   byte qskCompensation = 0 ;
   byte paddleMemUltimatic = PADDLE_FREE ;  // remember last ultimatic decision 
   byte paddleMemory = PADDLE_FREE ; // paddle memory for Iambic B
+  word morseCollector = 0 ;
+  word morseCollected = 0 ;
  
   // timing variables
   unsigned long onTimer; // countdown timer for mark time in high-level sending
@@ -102,7 +114,8 @@ public:
   void enableKey(EnableEnum enable);  // enable or disable KEY output
   void enablePtt(EnableEnum enable);  // enable or disable PTT output
   void enableTone(EnableEnum enable); // enable or disable tone
-  void setBreakIn() ;
+  void setAutospace(EnableEnum enable );
+  // void setBreakIn() ;
   void setFarnsworthWpm( byte wpm );
   void setFirstExtension( byte ms );
   void setKey(OnOffEnum onOff, word timeout); // low-level key control
@@ -115,8 +128,8 @@ public:
   void setToneFreq(word hz);  // set tone frequency for high-level sending
   void sendElement(ElementType element); // set status, onTimer and offTimer accordingly
   void sendPaddleElement( byte ); // determine element from paddle input and mode, and start sending
-  KeyingStatus sendCode( byte );  // send binary morse code; return true if accepted, false otherwise
-  KeyingStatus service( byte );   // read current millis, update timers, ports and status accordingly and return new service status
+  KeyerState sendCode( byte );  // send binary morse code; return true if accepted, false otherwise
+  KeyerState service( byte );   // read current millis, update timers, ports and status accordingly and return new service status
 };
 
 extern KeyingInterface keyer;
