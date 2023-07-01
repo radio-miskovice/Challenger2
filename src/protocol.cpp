@@ -7,12 +7,15 @@
 #include "protocol.h"
 
 const word WINKEY_SIDETONE_FREQ = 4000;
-const byte WKS_TEMPLATE = 0b11000000; // Winkey status marker
-const byte WKS_WAIT     = 0b00010000; // Winkey "wait" <=> keyer.busy
-const byte WKS_KEYDOWN  = 0b00001000; // Winkey "keydown" <=> keyer.force & keyer.key; only WK1 mode
-const byte WKS_BUSY     = 0b00000100; // Winkey "sending morse" <=> keyer.source == buffer
-const byte WKS_BREAKIN  = 0b00000010; // Winkey "paddle break-in" <=>
-const byte WKS_XOFF     = 0b00000001; // Winkey "XOFF" when buffer more than 2/3 full (170+ characters) 
+
+const byte BUFFER_XOFF_LIMIT = 4;
+const byte BUFFER_XON_LIMIT = 16;
+
+const byte WKS_READY    = 0xC0 ; // send to report everything OK and also after WKS_BREAKIN (to make N1MM happy)
+const byte WKS_BUFFERED = 0xC4 ; // send when accepted first character to buffer
+const byte WKS_XOFF     = 0xC5 ; // send when buffer almost full (fifo.getFree() < BUFFER_XOFF_LIMIT )
+const byte WKS_XON      = 0xC4 ; // send when in XOFF condition and fifo.getFree() > BUFFER_XON_LIMIT
+const byte WKS_BREAKIN  = 0xC6 ; // send on paddle break-in event (must be followed by 0xC0)
 
 /*
  * Jumping to 0x0000 will restart the whole program
@@ -139,7 +142,7 @@ void WinkeyProtocol::executeCommand()
     keyer.setQskCompensation( param[0] );
     break;
   case 0x15: // Winkeyer2 status
-    statusChanged = true ; // status will be reported after update
+    sendStatus();
     break;
   case 0x17: // dah:dit ratio
     keyer.setTimingParameters(0, (param[0] * 300U) / 50U, 0);
@@ -154,15 +157,23 @@ void WinkeyProtocol::executeCommand()
   phase = FETCH_ANY;
 }
 
+/**
+ * @return {byte} morse code of the next character from buffer, or zero if nothing to send
+**/
 byte WinkeyProtocol::getNextMorseCode() {
+  byte c = 0 ;
   if( fifo.hasMore() ) {
-    byte c = fifo.shift() ;
+    c = fifo.shift() ; // returns zero if buffer is empty
     if( c ) {
       c = morse.asciiToCode( c );
-      return c ;
+    }
+    if( fifo.getLength() == 0 ) sendStatus( WKS_READY ); // send READY if buffer is empty
+    else {
+      if( bufferFull && fifo.getFree() > BUFFER_XON_LIMIT ) sendStatus( WKS_XON ); // send XON if buffer was partially freed
+      else sendStatus( WKS_BUFFERED );
     }
   }
-  return 0 ;
+  return c ; // return morse code from buffer or zero if no code
 }
 
 void WinkeyProtocol::ignore() {}
@@ -181,20 +192,44 @@ void WinkeyProtocol::sendResponse( byte x ) {
   Serial.write(x);
 }
 
-void WinkeyProtocol::sendResponse(word x)
-{
-  Serial.write((byte)(x & 0xFF));
-  x >>= 8;
-  Serial.write((byte)(x & 0xFF));
-}
+// void WinkeyProtocol::sendResponse(word x)
+// {
+//   Serial.write((byte)(x & 0xFF));
+//   x >>= 8;
+//   Serial.write((byte)(x & 0xFF));
+// }
 
 void WinkeyProtocol::sendResponse(char* str, word length)
 { Serial.write( str, length ); }
-void WinkeyProtocol::sendStatus() {
-  if( statusChanged ) { 
-    Serial.write( wkStatus );
-    statusChanged = false ; 
+
+/**
+ * Send Winkeyer2 status byte explicit value
+ */
+void WinkeyProtocol::sendStatus(void)
+{
+  sendResponse(lastWkStatus);
+}
+
+/**
+ * Send Winkeyer2 status byte explicit value, only if it differs from previous status
+ */
+void WinkeyProtocol::sendStatus( byte status ) {
+  if( status != lastWkStatus ) {
+    sendResponse( status );
+    lastWkStatus = status ;
   }
+}
+
+/**
+ * Send Winkeyer2 status byte from KeyerState
+ */
+void WinkeyProtocol::sendStatus( KeyerState kState )
+{ 
+  byte wks = WKS_READY ;
+  if( kState.source == SRC_BUFFER ) wks |= WKS_BUFFERED ;
+  if( kState.breakIn == ON ) wks |= WKS_BREAKIN ;
+  if( bufferFull ) wks |= WKS_XOFF ;
+  sendStatus( wks );
 }
 /**
  * Reads serial port if character is available, except if previous character is still waiting to be processed.
@@ -231,9 +266,8 @@ void WinkeyProtocol::service()
       }
       else {
         fifo.push(input);
-        Serial.write( (char) input ); // do serial echo 
-        sprintf(message, " FIFO> %d chars, %d free, hasMore = %d", fifo.getLength(), fifo.getFree(), fifo.hasMore());
-        Serial.println( message );
+        if( echo.serial == ON ) Serial.write( (char) input ); // do serial echo 
+        if( fifo.getFree() <= BUFFER_XOFF_LIMIT ) sendStatus( WKS_XOFF );
       }
       break;
     case EXPECT_ADMIN:
@@ -267,7 +301,6 @@ void WinkeyProtocol::service()
     }
     input = Serial.peek();
   }
-  if( fifo.getLength() == 0 ) bufferBreak = false ;
   if (phase == EXECUTE) executeCommand();
 }
 
@@ -285,26 +318,27 @@ void WinkeyProtocol::setModeParameters()  {
     default: ;
   }
   if( wkMode & 8 ) paddle.swap();
-  serialEcho = (wkMode & 4) ? ON : OFF ;
+  echo.serial = (wkMode & 4) ? ON : OFF ;
+  echo.paddle = (wkMode & 0x40) ? ON : OFF ;
   // TODO: autospace (implement in KeyingInterface)
-  // keyer.setAutospace( wkMode & 2 )
+  keyer.setAutospace( (wkMode & 2) ? ENABLED : DISABLED );
   // TODO: contest spacing (implement in KeyingInterface)
   // keyer.setContestSpacing( wkMode & 1 )
 }
 
-void WinkeyProtocol::setStatus(KeyingStatus keyState, byte paddleState) {
-  byte status = WKS_TEMPLATE ;
-  if( keyState.busy == BUSY ) status |= WKS_WAIT ;
-  if( keyState.source == SRC_BUFFER ) status |= WKS_BUSY ;
-  if( bufferBreak ) status |= WKS_BREAKIN ;
-  if( fifo.getLength() > 170 ) status |= WKS_XOFF ;
-  statusChanged = statusChanged || (status != wkStatus) ;
-  if(statusChanged) {
-    wkStatus = status ;
-  }
+// void WinkeyProtocol::setStatus(KeyerStateWord keyState) {
+//   byte status = wkStatusFromKeyerState( keyState ) ;
+//   statusChanged = statusChanged || (status != wkStatus) ;
+//   if(statusChanged) {
+//     wkStatus = status ;
+//   }
+// }
 
-}
-
+/**
+ * event handler for paddle break-in
+**/
 void WinkeyProtocol::stopBuffer() {
   fifo.reset();
+  sendStatus( WKS_BREAKIN );
+  sendStatus( WKS_READY ); 
 }
