@@ -21,12 +21,14 @@
 #define CONFIG_SPEED_ROTARY_CLOCK D11
 #define CONFIG_SPEED_ROTARY_DATA D12
 #define CONFIG_SPEED_ROTARY_BUTTON_DIGITAL A0
-#define 
+#define CONFIG_CMD_MODE_LED D4
+
 // #define CONFIG_SPEED_ROTARY_BUTTON_ANALOG 0
 // #define CONFIG_SPEED_ROTARY_BUTTON_THRESHOLD 0
 
 /** ----- Potentiometer configuration parameters ----- **/
 // choose analog pin; if CONFIG_SPEED_TYPE == "ROTARY", this symbol is ignored
+
 #define CONFIG_SPEED_POT_INPUT 0
 
 #else 
