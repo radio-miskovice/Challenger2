@@ -5,7 +5,7 @@
 
 // debugging
 unsigned long blikTime = 0 ;
-const byte LED = D4 ;
+const byte LED = CONFIG_CMD_MODE_LED ;
 void blik(bool);
 
 // data type

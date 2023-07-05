@@ -179,7 +179,7 @@ byte WinkeyProtocol::getNextMorseCode() {
 void WinkeyProtocol::ignore() {}
 
 void WinkeyProtocol::init() {
-  Serial.begin( SERIAL_SPEED ); // 1k2 is the only winkeyer protocol baud rate
+  Serial.begin( SERIAL_SPEED, SERIAL_8N1 ); // 1k2 is the only winkeyer protocol baud rate
   fifo.reset();
   phase = FETCH_ANY ;
 }
