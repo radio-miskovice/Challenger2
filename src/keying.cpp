@@ -8,6 +8,29 @@ bool KeyingInterface::canAccept() {
   return (status.breakIn == OFF && nextMorse == 0);
 }
 
+void KeyingInterface::collectPaddleElement(ElementType element)
+{
+  // collect data for morse decoder
+  if (element == NO_ELEMENT ) // we are handling paddles (status.sendBuffer == OFF) but there is no more input
+  {
+    if (morseCollector > 0) {
+      morseCollected = morseCollector; // fix collected code
+      morseCollector = 0;
+      collectionTimeout = currentTime + unit * 4 ; // this is to ensure that we confirm word space after at least 5T
+    }
+    return ;
+  }
+  // otherwise add the current element to the collector
+  // we collect new element only if the code collected still has chance to be valid,
+  // i.e. while bit 8 is not set (valid code must be byte, hence start bit must be max. at bit 7)
+  if ((morseCollector & 0xFF00) == 0) 
+  {
+    if (morseCollector == 0) morseCollector = 1; // if collector was empty, put start bit at the beginning
+    morseCollector <<= 1; // shift up to make space in bit 0 for new element
+    if (element == DAH) morseCollector |= 1; // DIT has bit value 0, DAH is but value 1
+  }
+}
+
 void KeyingInterface::enableKey(EnableEnum enable)
 {
   flags.key = enable;
@@ -26,9 +49,25 @@ void KeyingInterface::enableTone(EnableEnum enable)
   if (flags.tone == DISABLED)  setTone(OFF);
 }
 
+word KeyingInterface::getCollectedCode() 
+{
+  word code = morseCollected ;
+  morseCollected = 0;
+  // status.hasPaddleCode = NO ;
+  return code;
+}
+
 void KeyingInterface::setAutospace( EnableEnum newState ) {
   flags.autospace = newState;
 }
+
+void KeyingInterface::setDefaults()
+{
+  setMode(IAMBIC_B);
+  setTimingParameters(25, 300, 50);
+  enableTone(ENABLED);
+}
+
 
 void KeyingInterface::setFarnsworthWpm(byte wpm)
 {
@@ -88,7 +127,7 @@ void KeyingInterface::sendElement(ElementType element)
   internal.current = element; // set new current element
   status.busy = BUSY;         // set new status
   paddleMemory = PADDLE_FREE;
-  byte elementBit = 0 ; // corresponds to DIT in morse code
+  // reset character collection timeout
   switch (element)
   {
   case NO_ELEMENT:
@@ -100,7 +139,6 @@ void KeyingInterface::sendElement(ElementType element)
     break;
   case DAH:
     elementFactor = ditDahFactor;
-    elementBit = 1 ;
   case DIT:
     onTimer = (unit * weighting) / 50UL; // DIT duration with weighting
     offTimer = 2 * unit - onTimer;       // element space duration with weighting
@@ -108,7 +146,6 @@ void KeyingInterface::sendElement(ElementType element)
     onTimer = (onTimer * elementFactor) / 100UL + qskCompensation ;
     setKey(ON);
     setTone(toneFreq);
-    morseCollector = (morseCollector << 1) | elementBit ;
     break;
 
   // word space: add 4T pause after 3T character space
@@ -160,7 +197,8 @@ void KeyingInterface::sendPaddleElement(byte input)
   default: // the rest is either DIT or DAH
     nextElement = (ElementType)input;
   }
-  sendElement(nextElement);
+  collectPaddleElement( nextElement ); // put the next element into morse code collector
+  sendElement(nextElement); // set next element to be sent
 }
 
 void KeyingInterface::setFirstExtension(byte ms)
@@ -272,6 +310,29 @@ void KeyingInterface::setTimingParameters( byte wpm, word _dahRatio, word _weigh
   weighting = (_weighting == 0) ? weighting : _weighting;
 }
 
+KeyerState KeyingInterface::handleBreakIn() {
+  // common for all breaks:
+  // stop sending:
+  setKey(OFF);
+  setTone(0);
+  // clear element buffers & timer
+  internal.current = NO_ELEMENT;
+  internal.last = NO_ELEMENT;
+  onTimer = 0;
+  status.force = OFF;
+  offTimer = unit; // leave 1T to handle paddle break in the main loop
+  // Buffer specific:
+  if (status.source == SRC_BUFFER)
+  {
+    // clear morse codes
+    currentMorse = 0;
+    nextMorse = 0;
+    // set break-in status, it has to be reported to protocol
+    status.breakIn = ON;
+    status.accept = DISABLED; // do not accept further codes until breakIn is cleared
+  }
+  return status; // paddle break event is the last action in this tick if occured
+}
 /**
  * This method checks time, services output control timers and updates line levels and sidetone as necessary.
  * @return current service status: READY (no timing in progress), BUSY (timing in progress), DIT (sending DIT), DAH (sending dah), SPACE (sending char space or wordspace)
@@ -279,36 +340,27 @@ void KeyingInterface::setTimingParameters( byte wpm, word _dahRatio, word _weigh
 KeyerState KeyingInterface::service( byte paddleState ) {
   // check current time 
   unsigned long interval = currentTime - lastMillis ; 
-  // (1) check paddle break and hard keydown timeout. Breaks buffer send and forced keydown.
+  // (1) check paddle break and hard keydown timeout. Breaks buffer send and forced keydown. 
+  // Break-in condition is asynchronous = it does not depend on timing
+  // therefore it is checked before checking timers
   bool breakInFlag =  paddleState > 0 && (status.source == SRC_BUFFER && status.busy == BUSY);
   bool forceTimeoutFlag = (hardKeyTimeout <= currentTime && status.force == ON); 
   if ( breakInFlag || forceTimeoutFlag || (status.force == ON && paddleState > 0))
   {
-    // common for all breaks:
-    // stop sending:
-    setKey(OFF);
-    setTone(0);
-    // clear element buffers & timer
-    internal.current = NO_ELEMENT ;
-    internal.last = NO_ELEMENT ;
-    onTimer = 0 ;
-    status.force = OFF ;
-    offTimer = unit ; // leave 1T to handle paddle break in the main loop
-    // Buffer specific:
-    if( status.source == SRC_BUFFER ) {
-      // clear morse codes
-      currentMorse = 0;
-      nextMorse = 0;
-      // set break-in status, it has to be reported to protocol
-      status.breakIn = ON ;
-      status.accept = DISABLED ; // do not accept further codes until breakIn is cleared
-    }
-    return status ; // paddle break event is the last action in this tick if occured
+    return handleBreakIn(); // do all necessary actions and return new status
   }
   // otherwise check scheduled actions - first do current element
   if( interval == 0UL ) return status ; // timing in progress, but elapsed zero time, hence no change
   //  if( nextMorse == 0 && !status.breakIn) status.buffer = ENABLED ;
+  // (3-4) check paddle word space
+  if (morseCollected == 0 &&  (collectionTimeout > 0) && (currentTime > collectionTimeout) )
+  {
+    collectionTimeout = 0;   // stop word space timer
+    morseCollected = 0xFFFF; // explicit code representing word space
+    status.hasPaddleCode = YES;
+  }
   lastMillis = currentTime ; // remember new current time
+  if( status.source == SRC_BUFFER ) morseCollector = 0;
   // (2) service KEY DOWN state
   if( onTimer > 0UL ) {
     if (onTimer < interval) onTimer = 0;
@@ -341,6 +393,7 @@ KeyerState KeyingInterface::service( byte paddleState ) {
     }
     else { return status ; } // if pause is in progress, no more actions follow
   }
+
   // (4) service buffered morse code 
   // The section above just finished element pause, so serve next element
   if (status.source == SRC_BUFFER && status.busy == READY) {

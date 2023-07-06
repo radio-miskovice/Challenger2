@@ -40,7 +40,7 @@ const byte CODE[] = {
     0b10110110,  // ) KK
     0b10001011,  // * BK
     0b01010100,  // + AR
-    0b11001110,  // , 
+    0b11001110,  // ,
     0b10000110,  // -
     0b01010110,  // .
     0b10010100,  // stroke /    //--- numbers --//
@@ -101,10 +101,13 @@ const word CODE_SIZE = sizeof(CODE) / sizeof(CODE[0]);
  */
 byte MorseEngine::asciiToCode(byte ascii)
 {
-  if (ascii == '|') return MORSE_CHARSPACE; // half space
-  if (ascii < 0x20 || ascii >= 0x7B) return 0; // out of range
+  if (ascii == '|')
+    return MORSE_CHARSPACE; // half space
+  if (ascii < 0x20 || ascii >= 0x7B)
+    return 0; // out of range
   // convert lowercase letter to uppercase
-  if (ascii > 0x60) ascii -= 0x20;
+  if (ascii > 0x60)
+    ascii -= 0x20;
   // finally, subtract code table offset
   ascii -= 0x20;
   return (CODE[ascii]);
@@ -159,6 +162,28 @@ byte MorseEngine::utf8ToCode(byte prefix, byte utf8Char)
   return 0;
 }
 
+word MorseEngine::adjustCode(word input)
+{
+  word code = input;
+  // shift start bit until it appears in high byte, ie. bit 8, ie. 0x0100
+  code = (input << 1) | 1; // shift left and add stop bit
+  while ((code & 0xFF00) == 0)
+    code = code << 1; // shift left until start bit appears in high byte
+  return (code & 0xFF);
+}
+
+byte MorseEngine::lookupCode(word input)
+{
+  int index = 0;
+  int size = sizeof( CODE ) / sizeof (CODE[0]);
+  for(index = 0; index < size ; index++ ) // last element
+  {
+    if( CODE[index] == (byte) input) break ;
+  }
+  if( index < size ) return (index + 0x20) ;
+  return '~' ;
+}
+
 /**
  * Decodes morse code collected from paddles. Collected code has high stop bit
  * and LSB last morse code element, LSB-aligned. Therefore it must be shifted in order
@@ -166,19 +191,11 @@ byte MorseEngine::utf8ToCode(byte prefix, byte utf8Char)
  * after the lowest morse code bit.
  * This method is called in holdElementDuration because there's plenty of time to complete.
  **/
-char MorseEngine::decodeMorse(word code) {
-  code = (code << 8) + 0x80 ; // shift morse code to upper byte and put stop bit
-  while( code & 0xFE00 ) { // repeat until MSB shifts to LSB and the stop mark is at 0x0100
-    code = code >> 1 ;
-  }
-  /* phase 2 - morse code lookup in code table */
-  if (code == 0x80)
-    return (' '); // unlikely to happen;
-  word size = sizeof(CODE) / sizeof(CODE[0]);
-  // lookup
-  for (unsigned char result = 0; result < size; result++)
-  {
-    if (code == CODE[result]) return (result + 0x20);
-  }
-  return 0;
+char MorseEngine::decodeMorse(word code)
+{
+  if( code == 0 ) return 0 ;  // no elements => NULL character
+  if( code == 0xFFFF ) return ' ';
+  if( code > 0x0100 ) return '*' ; // code too long => asterisk error character
+  code = adjustCode( code );  // add stop bit, align and strip start bit
+  return lookupCode( code );  // return character found or '~' error character
 }

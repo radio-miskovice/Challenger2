@@ -188,7 +188,17 @@ void WinkeyProtocol::init() {
  */
 bool WinkeyProtocol::isHostOpen() { return _isHostOpen; }
 
-void WinkeyProtocol::sendResponse( byte x ) {
+void WinkeyProtocol::sendPaddleEcho(byte ascii)
+{
+  ascii = ascii & 0x7F ; // mask off bit 7 which indicates status byte
+  if( echo.paddle == ON && (ascii >= ' ')) // send only printable characters
+  {
+    Serial.write(ascii);
+  }
+}
+
+void WinkeyProtocol::sendResponse(byte x)
+{
   Serial.write(x);
 }
 
@@ -341,4 +351,9 @@ void WinkeyProtocol::stopBuffer() {
   fifo.reset();
   sendStatus( WKS_BREAKIN );
   sendStatus( WKS_READY ); 
+}
+
+// for testing, M7
+void WinkeyProtocol::enablePaddleEcho( OnOffEnum e ) {
+  echo.paddle = e ;
 }

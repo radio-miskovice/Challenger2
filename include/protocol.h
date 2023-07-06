@@ -54,8 +54,9 @@ public:
   byte getNextMorseCode();
   void init();
   bool isHostOpen();
+  void sendPaddleEcho(byte ascii);
   void sendResponse(byte);
-  void sendResponse(word);
+  // void sendResponse(word);
   void sendResponse(char* str, word length);
   void sendStatus();
   void sendStatus( byte wkStatus );
@@ -63,6 +64,8 @@ public:
   void service();
   // void setStatus( KeyerStateWord keyState );
   void stopBuffer() ; 
+  // testing only, M7
+  void enablePaddleEcho(OnOffEnum e);
 };
 
 extern WinkeyProtocol protocol ;

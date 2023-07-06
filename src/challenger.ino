@@ -2,13 +2,12 @@
 #include "paddle.h"
 #include "speed_control.h"
 #include "protocol.h"
+#include "morse.h"
 
 // debugging
 unsigned long blikTime = 0 ;
 const byte LED = CONFIG_CMD_MODE_LED ;
 void blik(bool);
-
-// data type
 
 /* GLOBAL VARIABLES */
 KeyingSource keySource = SRC_PADDLE ;
@@ -18,18 +17,18 @@ int speedCommand = 20 ;
 unsigned long currentTime ;
 
 void setup() {
+  // BUFFER indicator setup
   pinMode( LED_BUILTIN, OUTPUT );
   digitalWrite( LED_BUILTIN, HIGH );
+  // basic component setup
   protocol.init();
   keyer.init();
-  keyer.setMode(IAMBIC_B);
-  keyer.setTimingParameters(speedPaddles, 300, 50);
-  keyer.enableTone(ENABLED);
+  keyer.setDefaults();
   paddle.init();
-  speedControl->init();
-  // command mode LED
-  pinMode( LED, OUTPUT );
-  // debugging
+  speedControl->init(); // includes also command mode LED
+  speedControl->setMinMax(15,46);
+  speedControl->setValue(speedPaddles);
+   // initial beep and flash
   keyer.setTone(300);
   digitalWrite( LED, HIGH );
   delay(133);
@@ -38,19 +37,27 @@ void setup() {
   digitalWrite( LED, LOW );
   keyer.setTone(0);
   delay(100);
+  // initial
   currentTime = millis();
   keyer.service(0);
-  keyer.sendCode(0b10101000);
-  keyer.sendCode(0b00111100);
-  speedControl->setMinMax(15,46);
-  speedControl->setValue(speedPaddles);
   digitalWrite( LED_BUILTIN, LOW );
+  // testing parameters
+  protocol.enablePaddleEcho( ON );
 }
 
 char message[100];
-// char qbf[] = "= QUICK BROWN FOX JUMPS OVER THE LAZY DOG.  / 1234567890 + ";
 int index = 0 ;
 KeyerState kkk ;
+
+char* binary( word x, byte limit = 16 ) {
+  word testvalue = 1 << (limit - 1);
+  for( byte i = 0; i<limit; i++ ) {
+    message[i] = (x & testvalue) ? '1' : '0' ;
+    x = x << 1 ;
+  }
+  message[limit] = 0;
+  return message ;
+}
 
 void loop() {
   currentTime = millis();
@@ -73,10 +80,19 @@ void loop() {
      byte x = protocol.getNextMorseCode(); // also send new status re XON, XOFF
      keyerState = keyer.sendCode( x ); // send code or do nothing if got zero
   }
+  if( keyerState.source == SRC_PADDLE && keyerState.busy == READY ) {
+    word code = keyer.getCollectedCode();
+    byte ascii = morse.decodeMorse(code);
+    if( ascii >= ' ' ) protocol.sendPaddleEcho(ascii);
+
+    // if( code > 0 ) {
+    //   byte ascii = morse.lookupCode(code);
+    // }
+  }
   protocol.sendStatus(keyerState);
 }
 
-// for debugging; remove in production code
+// speed change indicator
 void blik(bool start) {
   if( start ) {
     blikTime = currentTime + 5;
