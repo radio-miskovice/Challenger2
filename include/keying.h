@@ -125,6 +125,7 @@ public:
   void enablePtt(EnableEnum enable);  // enable or disable PTT output
   void enableTone(EnableEnum enable); // enable or disable tone
   word getCollectedCode(); // return collected morse code if available
+  KeyerState getState() ; 
   void setAutospace(EnableEnum enable ); // action to respond to protocol command
   void setDefaults();                    // set default parameters
   void setFarnsworthWpm(byte wpm);       // action to respond to protocol command

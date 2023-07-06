@@ -70,12 +70,12 @@ void loop() {
     protocol.sendResponse( speedControl->getSpeedWk2() ); // send WK status speed info
   }
   else blik(false);
-  protocol.service(); // check incoming data and execute command if necessary
   byte paddleState = paddle.check();
   KeyerState keyerState = keyer.service( paddleState ) ; // check and update timing and status
-  if( keyerState.breakIn == ON ) {
-    protocol.stopBuffer(); // will also send WK status "breakin" and "ready"
-  }
+  protocol.service(keyerState); // check incoming data and execute command if necessary
+  // if( keyerState.breakIn == ON ) {
+  //   protocol.stopBuffer(); // will also send WK status "breakin" and "ready"
+  // }
   if( keyer.canAccept() ) { // can send from buffer?
      byte x = protocol.getNextMorseCode(); // also send new status re XON, XOFF
      keyerState = keyer.sendCode( x ); // send code or do nothing if got zero

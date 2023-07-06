@@ -49,13 +49,15 @@ void KeyingInterface::enableTone(EnableEnum enable)
   if (flags.tone == DISABLED)  setTone(OFF);
 }
 
-word KeyingInterface::getCollectedCode() 
+word KeyingInterface::getCollectedCode()
 {
-  word code = morseCollected ;
+  word code = morseCollected;
   morseCollected = 0;
   // status.hasPaddleCode = NO ;
   return code;
 }
+
+KeyerState KeyingInterface::getState() { return status ; }
 
 void KeyingInterface::setAutospace( EnableEnum newState ) {
   flags.autospace = newState;
