@@ -17,11 +17,11 @@ int speedCommand = 20 ;
 unsigned long currentTime ;
 
 void setup() {
+  protocol.init();
   // BUFFER indicator setup
   pinMode( LED_BUILTIN, OUTPUT );
   digitalWrite( LED_BUILTIN, HIGH );
   // basic component setup
-  protocol.init();
   keyer.init();
   keyer.setDefaults();
   paddle.init();
@@ -45,51 +45,39 @@ void setup() {
   protocol.enablePaddleEcho( ON );
 }
 
-char message[100];
-int index = 0 ;
-KeyerState kkk ;
-
-char* binary( word x, byte limit = 16 ) {
-  word testvalue = 1 << (limit - 1);
-  for( byte i = 0; i<limit; i++ ) {
-    message[i] = (x & testvalue) ? '1' : '0' ;
-    x = x << 1 ;
-  }
-  message[limit] = 0;
-  return message ;
-}
-
 void loop() {
+  // fix current time at the beginning of the loop
   currentTime = millis();
+  // let speed control update current value if anything changed by ISR
   speedControl->update();
   int speed = speedControl->getValue();
+  // update keyer timing according to new value from speed control
   if( speed != speedPaddles ) {
     speedPaddles = speed ;
     keyer.setTimingParameters( speedPaddles );
     blik(true);
-    protocol.sendResponse( speedControl->getSpeedWk2() ); // send WK status speed info
+    protocol.sendResponse( speedControl->getSpeedWk2() ); // send WK status speed info if speed changed
   }
-  else blik(false);
+  else blik(false); // this ensures LED flash when speed is changed
+  // check current paddle state (just read ports, nothing else)
   byte paddleState = paddle.check();
-  KeyerState keyerState = keyer.service( paddleState ) ; // check and update timing and status
-  protocol.service(keyerState); // check incoming data and execute command if necessary
-  // if( keyerState.breakIn == ON ) {
-  //   protocol.stopBuffer(); // will also send WK status "breakin" and "ready"
-  // }
-  if( keyer.canAccept() ) { // can send from buffer?
-     byte x = protocol.getNextMorseCode(); // also send new status re XON, XOFF
-     keyerState = keyer.sendCode( x ); // send code or do nothing if got zero
+  // Service one tick in timing (key down, sidetone, pause between elements). 
+  // Variable paddleState is used to determine the next element if necessary. 
+  KeyerState keyerState = keyer.service( paddleState ) ; // for details see keying.cpp
+  protocol.service(keyerState); // Check incoming serial data and execute command if necessary
+  // The following block will fetch next morse code into keyer if keyer ready and morse code available from buffer
+  if( keyer.canAccept() ) 
+  { 
+     byte x = protocol.getNextMorseCode(); // also send new status re XON, XOFF; returns 0 if nothing available in the buffer
+     keyerState = keyer.sendCode( x );     // send obtained morse code; does nothing if code is zero
   }
+  // The following block retrieves morse code just played on paddles and converts to ASCII char
   if( keyerState.source == SRC_PADDLE && keyerState.busy == READY ) {
-    word code = keyer.getCollectedCode();
+    word code = keyer.getCollectedCode(); // keyer timing also detects word space and returns special code if detected
     byte ascii = morse.decodeMorse(code);
-    if( ascii >= ' ' ) protocol.sendPaddleEcho(ascii);
-
-    // if( code > 0 ) {
-    //   byte ascii = morse.lookupCode(code);
-    // }
+    if( ascii >= ' ' ) protocol.sendPaddleEcho(ascii); // this actually sends echo only if enabled and character makes sense
   }
-  protocol.sendStatus(keyerState);
+  protocol.sendStatus(keyerState); // after all functions have been serviced, send new Winkeyer status if Winkeyer status changed
 }
 
 // speed change indicator

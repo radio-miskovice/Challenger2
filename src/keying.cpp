@@ -4,56 +4,81 @@
 // Keying interface singleton
 KeyingInterface keyer = KeyingInterface() ;
 
+/**
+ * @return true if keyer buffer has space for new morse code
+ */
 bool KeyingInterface::canAccept() {
   return (status.breakIn == OFF && nextMorse == 0);
 }
 
+/**
+ * @param element morse element (dot or dah) to be appended to the current morse code played on paddles
+ */
 void KeyingInterface::collectPaddleElement(ElementType element)
 {
-  // collect data for morse decoder
   if (element == NO_ELEMENT ) // we are handling paddles (status.sendBuffer == OFF) but there is no more input
   {
     if (morseCollector > 0) {
-      morseCollected = morseCollector; // fix collected code
-      morseCollector = 0;
-      collectionTimeout = currentTime + unit * 4 ; // this is to ensure that we confirm word space after at least 5T
+      morseCollected = morseCollector; // character was finished, move its code to output buffer
+      morseCollector = 0;              // prepare collector for a new morse code
+      // the following starts wait timeout for detection of word space
+      // it is called only once, just when the current character has been completed and fixed
+      collectionTimeout = currentTime + unit * 4 ; // this is to ensure that we detect word space after at least 5T (not earlier)
     }
     return ;
   }
-  // otherwise add the current element to the collector
-  // we collect new element only if the code collected still has chance to be valid,
-  // i.e. while bit 8 is not set (valid code must be byte, hence start bit must be max. at bit 7)
+  // the next part appends non-empty element to collector buffer
+  // the element is appended only if the morse code still has chance to be valid,
+  // i.e. element count in the collector must be 7 or less
+  // i.e. bits 8 to 15 are all zero
   if ((morseCollector & 0xFF00) == 0) 
   {
     if (morseCollector == 0) morseCollector = 1; // if collector was empty, put start bit at the beginning
     morseCollector <<= 1; // shift up to make space in bit 0 for new element
-    if (element == DAH) morseCollector |= 1; // DIT has bit value 0, DAH is but value 1
+    if (element == DAH) morseCollector |= 1; // append element; DIT has bit value 0, DAH is bit value 1
   }
 }
 
+/**
+ * Enable or disable keyer output
+ * @param enable ENABLED | DISABLED
+ */
 void KeyingInterface::enableKey(EnableEnum enable)
 {
   flags.key = enable;
   if (flags.key == DISABLED) setKey(OFF);
 }
 
+/**
+ * Enable or disable PTT output
+ * @param enable ENABLED | DISABLED
+ */
 void KeyingInterface::enablePtt(EnableEnum enable)
 {
   flags.ptt = enable;
   if (flags.ptt == DISABLED) setPtt(OFF);
 }
 
+/**
+ * Enable or disable sidetone output (square wave)
+ * @param enable ENABLED | DISABLED
+ */
 void KeyingInterface::enableTone(EnableEnum enable)
 {
   flags.tone = enable;
   if (flags.tone == DISABLED)  setTone(OFF);
 }
 
+/**
+ * @return last finished morse code.
+ * Zero = no morse code available
+ * > 0x00FF: invalid code (error)
+ * 
+ */
 word KeyingInterface::getCollectedCode()
 {
   word code = morseCollected;
   morseCollected = 0;
-  // status.hasPaddleCode = NO ;
   return code;
 }
 
@@ -155,10 +180,11 @@ void KeyingInterface::sendElement(ElementType element)
     extraSpaceFactor = 4;
   // half space: add 3T
   case HALFSPACE:
+    extraSpaceFactor = 3;
   // charspace: add 2T pause after the last element
   case CHARSPACE:
     onTimer = 0;
-    offTimer = unit * extraSpaceFactor + (element == HALFSPACE ? 1 : 0);
+    offTimer = unit * extraSpaceFactor ;
     setKey(OFF);
     setTone(0);
     break;

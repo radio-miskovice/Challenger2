@@ -244,13 +244,6 @@ void WinkeyProtocol::sendResponse(byte x)
   Serial.write(x);
 }
 
-// void WinkeyProtocol::sendResponse(word x)
-// {
-//   Serial.write((byte)(x & 0xFF));
-//   x >>= 8;
-//   Serial.write((byte)(x & 0xFF));
-// }
-
 void WinkeyProtocol::sendResponse(char *str, word length)
 {
   Serial.write(str, length);

@@ -1,5 +1,5 @@
-#ifdef __LGT8FX8P__
-const unsigned long SERIAL_SPEED = 1200;
+#ifdef CONFIG_BAUDRATE_OVERRIDE
+const unsigned long SERIAL_SPEED = CONFIG_BAUDRATE_OVERRIDE;
 #else
-const unsigned long SERIAL_SPEED = 38400;
+const unsigned long SERIAL_SPEED = 1200;
 #endif
