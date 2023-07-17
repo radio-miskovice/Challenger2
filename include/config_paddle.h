@@ -7,8 +7,8 @@
 // Right paddle pin: by standard it is ring contact on TRS connector
 #define CONFIG_PADDLE_RIGHT 3
 #elif defined(HW_CHALLENGER2)
-#define CONFIG_PADDLE_LEFT D2
-#define CONFIG_PADDLE_RIGHT D3
+#define CONFIG_PADDLE_LEFT 2
+#define CONFIG_PADDLE_RIGHT 3
 
 #else // Make your own HW config
 #define CONFIG_PADDLE_LEFT 0

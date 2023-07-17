@@ -40,11 +40,16 @@ private:
   byte _isHostOpen;      // host status; ignored
   bool _sidetonePaddleOnly = false; // unused?
   bool bufferFull = false ; // flag indicating that XOFF was reported to host
+  bool breakInFlag = false ;
+  KeyerState keyState ;
   EchoFlags echo = { serial: ON, paddle: OFF };
   CharacterFIFO fifo; // text buffer 256 bytes
   void ignore(); // method to handle ignored WK commands
   void setModeParameters();
   byte wkStatusFromKeyerState( KeyerState ks );
+  void handleBreak();
+  void handleBuffer();
+  void handlePaddleEcho();
   // debugging message
   char message[80];
 
@@ -54,15 +59,18 @@ public:
   byte getNextMorseCode();
   void init();
   bool isHostOpen();
+  void sendPaddleEcho(byte ascii);
   void sendResponse(byte);
-  void sendResponse(word);
+  // void sendResponse(word);
   void sendResponse(char* str, word length);
   void sendStatus();
   void sendStatus( byte wkStatus );
   void sendStatus( KeyerState keyState );
-  void service();
+  void service( KeyerState keyState );
   // void setStatus( KeyerStateWord keyState );
   void stopBuffer() ; 
+  // testing only, M7
+  void enablePaddleEcho(OnOffEnum e);
 };
 
 extern WinkeyProtocol protocol ;

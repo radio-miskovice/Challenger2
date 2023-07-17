@@ -60,6 +60,7 @@ void RotaryEncoder::init()
 {
   pinMode(CONFIG_SPEED_ROTARY_CLOCK, INPUT_PULLUP);
   pinMode(CONFIG_SPEED_ROTARY_DATA, INPUT_PULLUP);
+  pinMode( CONFIG_CMD_MODE_LED, OUTPUT );
   enableInterrupt();
 }
 

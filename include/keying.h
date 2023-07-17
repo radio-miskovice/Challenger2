@@ -40,6 +40,7 @@ struct KeyerState {
   OnOffEnum force : 1;      // will be masked off in WK2 status byte
   OnOffEnum ptt : 1;        // will be masked off in WK2 status byte
   KeyerMode mode : 2;       // will be masked off in WK2 status byte
+  YesNoEnum hasPaddleCode: 1; // YES when a code is ready 
 };
 
 struct InternalStatus {
@@ -74,14 +75,15 @@ private:
     source : SRC_PADDLE, 
     force : OFF, 
     ptt : OFF,
-    mode : IAMBIC_A
+    mode : IAMBIC_A,
+    hasPaddleCode: NO
   };
 
   InternalStatus internal = { current : NO_ELEMENT, last: NO_ELEMENT };
-  byte currentMorse = 0 ;
-  byte nextMorse = 0 ;
 
   // binary morse code buffer memory
+  byte currentMorse = 0 ;
+  byte nextMorse = 0 ;
 
   // keying parameter settings 
   word unit = 50;           // default timing unit is 50 msec = 24 WPM
@@ -92,37 +94,47 @@ private:
   byte pttLead = 0, pttTail = 0; 
   byte firstExtension = 0 ;
   byte qskCompensation = 0 ;
+
+  // internal memory to handle paddle input
   byte paddleMemUltimatic = PADDLE_FREE ;  // remember last ultimatic decision 
   byte paddleMemory = PADDLE_FREE ; // paddle memory for Iambic B
-  word morseCollector = 0 ;
-  word morseCollected = 0 ;
+
+  // internal memory to collect paddle keying for decode
+  word morseCollector = 0 ; // buffer memory to hold current morse elements
+  word morseCollected = 0 ; // final morse code after it has been finished
+  //byte asciiCollected = 0 ;
  
   // timing variables
   unsigned long onTimer; // countdown timer for mark time in high-level sending
   unsigned long offTimer;    // countdown timer for space time in high-level sending
   unsigned long lastMillis ; // millisecond CPU time during the last service tick
   unsigned long hardKeyTimeout = 0 ;
+  unsigned long collectionTimeout = 0 ;
 
   // private methods
   word trimToneFreq(word hz);   // trim tone frequency to stay between limits or keep zero
   void setKey(OnOffEnum onOff); // low-level key control
   void setPtt(OnOffEnum onOff); // low-level PTT control
+  KeyerState handleBreakIn() ;  // all necessary actions to set break-in condition
+  void collectPaddleElement( ElementType element );
 
 public:
   void init();  // port setup
-  bool canAccept();
+  bool canAccept(); // true if a binary morse code can be received by internal keying buffer
   void enableKey(EnableEnum enable);  // enable or disable KEY output
   void enablePtt(EnableEnum enable);  // enable or disable PTT output
   void enableTone(EnableEnum enable); // enable or disable tone
-  void setAutospace(EnableEnum enable );
-  // void setBreakIn() ;
-  void setFarnsworthWpm( byte wpm );
-  void setFirstExtension( byte ms );
+  word getCollectedCode(); // return collected morse code if available
+  KeyerState getState() ; 
+  void setAutospace(EnableEnum enable ); // action to respond to protocol command
+  void setDefaults();                    // set default parameters
+  void setFarnsworthWpm(byte wpm);       // action to respond to protocol command
+  void setFirstExtension(byte ms);       // action to respond to protocol command
   void setKey(OnOffEnum onOff, word timeout); // low-level key control
-  void setMode(KeyerMode newMode);
-  void setPttTiming( byte lead, byte tail );
-  void setQskCompensation( byte ms );
-  void setSource( KeyingSource );
+  void setMode(KeyerMode newMode);            // action to respond to protocol command
+  void setPttTiming(byte lead, byte tail);    // action to respond to protocol command
+  void setQskCompensation(byte ms);           // action to respond to protocol command
+  void setSource( KeyingSource );  // set source accordingly
   void setTimingParameters(byte wpm, word aDahRatio = 0, word aWeighting = 0); // set time constants for given WPM speed, DAH:DIT ratio and weighting
   void setTone(word hz);      // low-level sidetone control
   void setToneFreq(word hz);  // set tone frequency for high-level sending
