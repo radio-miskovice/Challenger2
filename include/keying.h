@@ -86,11 +86,12 @@ private:
   byte nextMorse = 0 ;
 
   // keying parameter settings 
-  word unit = 50;           // default timing unit is 50 msec = 24 WPM
-  word weighting = 50 ;     // DIT duration in percent, element space is then 100 - weighting
-  word ditDahFactor = 300 ; // DAH duration in percent of DIT element time including weighting
-  word toneFreq = 600 ;     // default sidetone frequency
-  byte farnsWorthWpm = 10 ; // Farnsworth speed 
+  word unit = 50;            // default timing unit is 50 msec = 24 WPM
+  word farnsUnit = 0 ;       // unit length for farnsworth keying (1200/farnsworth wpm)
+  word extraFarnsUnit = 0 ;  // farnsworth extra unit to be added to char space and word space
+  word weighting = 50 ;      // DIT duration in percent, element space is then 100 - weighting
+  word ditDahFactor = 300 ;  // DAH duration in percent of DIT element time including weighting
+  word toneFreq = 600 ;      // default sidetone frequency
   byte pttLead = 0, pttTail = 0; 
   byte firstExtension = 0 ;
   byte qskCompensation = 0 ;
@@ -113,11 +114,13 @@ private:
 
   // private methods
   word trimToneFreq(word hz);   // trim tone frequency to stay between limits or keep zero
+  void setFarnsExtra();
   void setKey(OnOffEnum onOff); // low-level key control
   void setPtt(OnOffEnum onOff); // low-level PTT control
   KeyerState handleBreakIn() ;  // all necessary actions to set break-in condition
   void collectPaddleElement( ElementType element );
-
+  word farnsworthFactor(word, word) ;
+  
 public:
   void init();  // port setup
   bool canAccept(); // true if a binary morse code can be received by internal keying buffer

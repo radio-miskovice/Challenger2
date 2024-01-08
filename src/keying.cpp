@@ -4,6 +4,13 @@
 // Keying interface singleton
 KeyingInterface keyer = KeyingInterface() ;
 
+word KeyingInterface::farnsworthFactor( word wpm, word farnsworth ) {
+  if( wpm <= farnsworth ) return 0 ;
+  unsigned long f = unit * farnsworth;
+  f =  (50526UL / f - 42 ) >> 4 ; // extra units
+  return f ;
+}
+
 /**
  * @return true if keyer buffer has space for new morse code
  */
@@ -96,9 +103,24 @@ void KeyingInterface::setDefaults()
 }
 
 
-void KeyingInterface::setFarnsworthWpm(byte wpm)
+void KeyingInterface::setFarnsworthWpm(byte fwpm)
 {
-  farnsWorthWpm = wpm ;
+  if( fwpm < 5 ) {
+    farnsUnit = 0 ;
+    extraFarnsUnit = 0 ;
+  }
+  farnsUnit = 1200 / fwpm ;
+  setFarnsExtra() ;
+}
+
+void KeyingInterface::setFarnsExtra() {
+  if (farnsUnit <= unit)
+  {
+    extraFarnsUnit = 0;
+  }
+  else {
+    extraFarnsUnit = (42 * (farnsUnit - unit))>>4 ;
+  }
 }
 
 /**
@@ -185,6 +207,7 @@ void KeyingInterface::sendElement(ElementType element)
   case CHARSPACE:
     onTimer = 0;
     offTimer = unit * extraSpaceFactor ;
+    if( status.bufferSend == ON ) offTimer += extraSpaceFactor * extraFarnsUnit ;
     setKey(OFF);
     setTone(0);
     break;
@@ -336,6 +359,7 @@ void KeyingInterface::setTimingParameters( byte wpm, word _dahRatio, word _weigh
   unit = (wpm > 5) ? 1200 / wpm : unit ;
   ditDahFactor = (_dahRatio == 0) ? ditDahFactor : _dahRatio;
   weighting = (_weighting == 0) ? weighting : _weighting;
+  setFarnsExtra();
 }
 
 KeyerState KeyingInterface::handleBreakIn() {

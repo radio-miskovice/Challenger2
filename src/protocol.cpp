@@ -312,7 +312,7 @@ void WinkeyProtocol::service(KeyerState _keyerState)
         command = input;
         bytesExpected = parametersExpected[command];
         if (bytesExpected == 255)
-          bytesExpected++; // only for donwload EEPROM command
+          bytesExpected++; // only for download EEPROM command
         bytesFetched = 0;
         if (bytesExpected > 0)
           phase = EXPECT_PARAMS;
