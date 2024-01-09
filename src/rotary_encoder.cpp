@@ -58,6 +58,7 @@ volatile int  interruptIncrement = 0 ; // increment accumulated from ISR
  */
 void RotaryEncoder::init()
 {
+  setButtonPin( CONFIG_SPEED_ROTARY_BUTTON_DIGITAL );
   pinMode(CONFIG_SPEED_ROTARY_CLOCK, INPUT_PULLUP);
   pinMode(CONFIG_SPEED_ROTARY_DATA, INPUT_PULLUP);
   pinMode( CONFIG_CMD_MODE_LED, OUTPUT );

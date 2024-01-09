@@ -5,9 +5,11 @@ class Commander {
     int active: 1 ;
   } status ;
 
+  void activate();
+  void deactivate();
   bool isActive() ;
-  void activateCommand( char );
-
+  // void activateCommand( char );
+  
 };
 
 extern Commander commander ;

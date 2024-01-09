@@ -47,8 +47,13 @@ void setup() {
 
 void loop() {
   // fix current time at the beginning of the loop
+  unsigned long t = currentTime ;
   currentTime = millis();
+  byte tick = (currentTime - t) == 0 ? 0 : 1 ;
   // let speed control update current value if anything changed by ISR
+  if( tick != 0 ) {
+    speedControl->checkButton();
+  }
   speedControl->update();
   int speed = speedControl->getValue();
   // update keyer timing according to new value from speed control
