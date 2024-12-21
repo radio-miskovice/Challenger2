@@ -7,5 +7,5 @@ NONE
 ## What happens when command mode is activated
 
 1. Keying is stopped
-2. Buffered message is discarded
-3. Protocol commands are completed, but they are ignored: any incoming characters are dropped. Commands are accepted with complete parameters, but not executed.
+2. Buffered message is NOT discarded
+3. Protocol commands are not checked 

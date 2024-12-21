@@ -3,6 +3,7 @@
 #include "speed_control.h"
 #include "protocol.h"
 #include "morse.h"
+#include "commander.h"
 
 // debugging
 unsigned long blikTime = 0 ;
@@ -12,15 +13,15 @@ void blik(bool);
 /* GLOBAL VARIABLES */
 KeyingSource keySource = SRC_PADDLE ;
 int speedPaddles = 25 ;
-int speedBuffer = 20 ;
-int speedCommand = 20 ;
+int speedBuffer = 25 ;
+int speedCommand = 25 ;
 unsigned long currentTime ;
 
 void setup() {
   protocol.init();
   // BUFFER indicator setup
   pinMode( LED_BUILTIN, OUTPUT );
-  digitalWrite( LED_BUILTIN, HIGH );
+  digitalWrite( LED_BUILTIN, LED_ON );
   // basic component setup
   keyer.init();
   keyer.setDefaults();
@@ -29,18 +30,23 @@ void setup() {
   speedControl->setMinMax(15,46);
   speedControl->setValue(speedPaddles);
    // initial beep and flash
-  keyer.setTone(300);
+  keyer.setTone(1200);
   digitalWrite( LED, HIGH );
-  delay(133);
-  keyer.setTone(1300);
-  delay(133);
+  currentTime = millis();
+  keyer.service(0);
+  keyer.setToneFreq(1200);
+  keyer.setTimingParameters(25);
+  keyer.sendCode(0b10101000);
+  keyer.sendCode(0b00111100);
+  do {
+    keyer.service(0);
+    delay(1);
+  } while ( keyer.isSending() );
   digitalWrite( LED, LOW );
   keyer.setTone(0);
   delay(100);
   // initial
-  currentTime = millis();
-  keyer.service(0);
-  digitalWrite( LED_BUILTIN, LOW );
+  digitalWrite( LED_BUILTIN, LED_OFF );
   // testing parameters
   protocol.enablePaddleEcho( ON );
 }
@@ -49,7 +55,8 @@ void loop() {
   // fix current time at the beginning of the loop
   unsigned long t = currentTime ;
   currentTime = millis();
-  byte tick = (currentTime - t) == 0 ? 0 : 1 ;
+  byte tick = (currentTime - t) == 0 ? 0 : 1 ; // determine if it i worth checking command button status
+  byte paddleState = paddle.check();
   // let speed control update current value if anything changed by ISR
   if( tick != 0 ) {
     speedControl->checkButton();
@@ -65,7 +72,6 @@ void loop() {
   }
   else blik(false); // this ensures LED flash when speed is changed
   // check current paddle state (just read ports, nothing else)
-  byte paddleState = paddle.check();
   // Service one tick in timing (key down, sidetone, pause between elements). 
   // Variable paddleState is used to determine the next element if necessary. 
   KeyerState keyerState = keyer.service( paddleState ) ; // for details see keying.cpp

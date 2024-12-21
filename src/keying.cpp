@@ -500,3 +500,12 @@ word KeyingInterface::trimToneFreq(word hz)
       return 0;
   return (hz < minToneFreq ? minToneFreq : (hz > maxToneFreq ? maxToneFreq : hz));
 }
+
+/**
+ * return true if sending
+ */
+boolean KeyingInterface::isSending() {
+  return 
+  ( status.bufferSend == ON || status.busy == BUSY || status.hasPaddleCode == YES );
+
+}

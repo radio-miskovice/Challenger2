@@ -28,7 +28,8 @@ byte SpeedController::getSpeedWk2() {
   return (((value - minValue) & 0x3F) | 0x80 );
 }
 
-byte getEvent() {
+byte SpeedController::getEvent()
+{
   byte e = buttonEvent ;
   buttonEvent = 0 ;
   return e ;

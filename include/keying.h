@@ -145,6 +145,7 @@ public:
   void sendPaddleElement( byte ); // determine element from paddle input and mode, and start sending
   KeyerState sendCode( byte );  // send binary morse code; return true if accepted, false otherwise
   KeyerState service( byte );   // read current millis, update timers, ports and status accordingly and return new service status
+  boolean isSending();
 };
 
 extern KeyingInterface keyer;

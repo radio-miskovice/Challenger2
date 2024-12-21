@@ -13,6 +13,18 @@ enum ElementType { NO_ELEMENT = 0, DIT = 1, DAH = 2, CHARSPACE = 3, WORDSPACE = 
 enum PaddleState { PADDLE_FREE = 0, PADDLE_DIT = 1, PADDLE_DAH = 2, PADDLE_SQUEEZE = 3 };
 enum YesNoEnum   { NO = 0, YES = 1 };
 
+#if defined( LED_PLUS )
+
+#define LED_ON  HIGH
+#define LED_OFF LOW
+
+#else 
+
+#define LED_ON  LOW
+#define LED_OFF HIGH
+
+#endif
+
 const byte MORSE_SPACE = 0xFF;
 const byte MORSE_CHARSPACE = 0x80;
 
